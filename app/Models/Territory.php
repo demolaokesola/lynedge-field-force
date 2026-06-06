@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['region_id', 'name', 'code', 'team_policy'])]
 class Territory extends Model
@@ -22,6 +23,14 @@ class Territory extends Model
     public function region(): BelongsTo
     {
         return $this->belongsTo(Region::class);
+    }
+
+    /**
+     * @return HasMany<Position, $this>
+     */
+    public function positions(): HasMany
+    {
+        return $this->hasMany(Position::class);
     }
 
     /**

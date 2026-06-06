@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Shared\Resources\Calls\CallResource;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -32,6 +33,10 @@ class ManagementPanelProvider extends PanelProvider
                 'primary' => Color::Indigo,
             ])
             ->discoverResources(in: app_path('Filament/Management/Resources'), for: 'App\Filament\Management\Resources')
+            // Shared with the field panel — read-only here (CallPolicy denies write to management roles).
+            ->resources([
+                CallResource::class,
+            ])
             ->discoverPages(in: app_path('Filament/Management/Pages'), for: 'App\Filament\Management\Pages')
             ->pages([
                 Dashboard::class,

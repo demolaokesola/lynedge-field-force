@@ -2,16 +2,22 @@
 
 namespace App\Models\Concerns;
 
+use App\Models\Territory;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
- * Restricts a query to the rows a given viewer is allowed to see.
+ * Transaction visibility scope (Scope A). Restricts a query to the rows a given viewer
+ * may READ — the read-side counterpart to write-side Policies, kept deliberately
+ * separate from them (see .ai/project, "Two scopes").
  *
- * Stub for now — visibility is the read-side counterpart to write-side Policies and
- * stays deliberately separate from them (see .ai/project). Each model that uses this
- * trait will override the body to walk the Region -> Territory -> Position org tree
- * for the viewer's assignments. Until then it is a no-op (returns the query unchanged).
+ * For models carrying both user_id and territory_id (Call, and later Distribution &
+ * Deposit), so it keys off those two columns:
+ *  - superuser|platform_admin|hq_lead|accountant -> all
+ *  - regional_head -> territories of their region_id
+ *  - supervisor    -> territories of their region (derived from their open position)
+ *  - sales_rep     -> own activity only
+ *  - anyone else / no viewer -> nothing
  */
 trait ScopesToViewer
 {
@@ -21,7 +27,42 @@ trait ScopesToViewer
      */
     public function scopeVisibleTo(Builder $query, ?User $viewer = null): Builder
     {
-        // TODO: constrain to $viewer's visible org subtree once the domain models exist.
-        return $query;
+        $viewer ??= auth()->user();
+
+        if ($viewer === null) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        if ($viewer->hasAnyRole(['superuser', 'platform_admin', 'hq_lead', 'accountant'])) {
+            return $query;
+        }
+
+        // Supervisor is checked before sales_rep: a user who is both keeps region-read.
+        if ($viewer->hasRole('regional_head')) {
+            return $query->whereIn('territory_id', $this->territoriesInRegion($viewer->region_id));
+        }
+
+        if ($viewer->hasRole('supervisor')) {
+            return $query->whereIn('territory_id', $this->territoriesInRegion($viewer->currentRegionId()));
+        }
+
+        if ($viewer->hasRole('sales_rep')) {
+            return $query->where('user_id', $viewer->id);
+        }
+
+        return $query->whereRaw('1 = 0');
+    }
+
+    /**
+     * Subquery of territory ids in a region. A null region id resolves to no territories
+     * (never "all") — a rep with no region must not fall through to everything.
+     *
+     * @return Builder<Territory>
+     */
+    private function territoriesInRegion(?int $regionId): Builder
+    {
+        return Territory::query()
+            ->where('region_id', $regionId)
+            ->select('id');
     }
 }

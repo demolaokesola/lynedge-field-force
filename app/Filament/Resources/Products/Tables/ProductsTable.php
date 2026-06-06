@@ -27,7 +27,11 @@ class ProductsTable
                 TextColumn::make('pack_size')
                     ->toggleable(),
                 TextColumn::make('unit_price')
-                    ->formatStateUsing(fn (?Money $state): ?string => $state?->format())
+                    ->formatStateUsing(fn (mixed $state): ?string => match (true) {
+                        $state === null => null,
+                        $state instanceof Money => $state->format(),
+                        default => Money::of($state)->format(),
+                    })
                     ->sortable(),
                 TextColumn::make('teams.name')
                     ->badge(),

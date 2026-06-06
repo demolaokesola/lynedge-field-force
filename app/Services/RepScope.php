@@ -25,10 +25,23 @@ class RepScope
      */
     public function invoiceablePositions(User $rep, int $territoryId, ?Carbon $on = null): Collection
     {
+        return $this->activePositions($rep, $on)
+            ->where('territory_id', $territoryId)
+            ->values();
+    }
+
+    /**
+     * The rep's active positions across ALL territories on a given date — the union the
+     * field form offers as the position a call is logged under, and the basis for the
+     * "block if the rep has no active position" guard.
+     *
+     * @return Collection<int, Position>
+     */
+    public function activePositions(User $rep, ?Carbon $on = null): Collection
+    {
         $on ??= Carbon::now();
 
         return Position::query()
-            ->where('territory_id', $territoryId)
             ->where('status', PositionStatus::Active)
             ->whereHas('assignments', fn (Builder $q): Builder => $q
                 ->where('user_id', $rep->id)

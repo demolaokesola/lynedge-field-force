@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Shared\Resources\Calls\CallResource;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -37,6 +38,10 @@ class FieldPanelProvider extends PanelProvider
             ->maxContentWidth(Width::Full)
             ->sidebarCollapsibleOnDesktop()
             ->discoverResources(in: app_path('Filament/Field/Resources'), for: 'App\Filament\Field\Resources')
+            // Shared with the management panel — one class, behaviour varies by viewer.
+            ->resources([
+                CallResource::class,
+            ])
             ->discoverPages(in: app_path('Filament/Field/Pages'), for: 'App\Filament\Field\Pages')
             ->pages([
                 Dashboard::class,

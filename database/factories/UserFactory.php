@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Region;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -31,6 +32,7 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
+            'is_active' => true,
         ];
     }
 
@@ -52,5 +54,13 @@ class UserFactory extends Factory
         return $this->afterCreating(function (User $user) use ($role): void {
             $user->assignRole(Role::findOrCreate($role, 'web'));
         });
+    }
+
+    /**
+     * Anchor the user to a region (for region-scoped non-reps like regional_head).
+     */
+    public function inRegion(Region|int $region): static
+    {
+        return $this->state(['region_id' => $region instanceof Region ? $region->getKey() : $region]);
     }
 }

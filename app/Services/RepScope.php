@@ -4,14 +4,15 @@ namespace App\Services;
 
 use App\Enums\PositionStatus;
 use App\Models\Position;
+use App\Models\Product;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
 
 /**
- * Resolves the positions a rep may act under. Phase 5 adds productsForPosition()
- * (the line-level "can't distribute the same product" guard).
+ * Resolves the positions a rep may act under, and the products they may distribute
+ * under a given position (the "can't distribute the same product" guard).
  */
 class RepScope
 {
@@ -28,6 +29,18 @@ class RepScope
         return $this->activePositions($rep, $on)
             ->where('territory_id', $territoryId)
             ->values();
+    }
+
+    /**
+     * Products the rep may distribute under this position. Loads team.products via
+     * the product_team pivot — the sole source of truth for the line-level guard.
+     * Works identically for strict and liberal teams.
+     *
+     * @return Collection<int, Product>
+     */
+    public function productsForPosition(Position $position): Collection
+    {
+        return $position->load('team.products')->team->products;
     }
 
     /**

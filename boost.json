@@ -11,6 +11,8 @@
     ],
     "sail": true,
     "skills": [
-        "laravel-best-practices"
+        "laravel-best-practices",
+        "pest-testing",
+        "deploying-laravel-cloud"
     ]
 }

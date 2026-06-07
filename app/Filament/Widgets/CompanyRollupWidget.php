@@ -11,6 +11,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 class CompanyRollupWidget extends BaseWidget
 {
@@ -65,24 +66,30 @@ class CompanyRollupWidget extends BaseWidget
 
     private function buildQuery(): Builder
     {
-        // ROW_NUMBER() window function is evaluated after GROUP BY in PostgreSQL,
-        // giving each grouped row a stable unique id for Filament's table.
-        return Distribution::query()
-            ->join('territories', 'territories.id', 'distributions.territory_id')
-            ->join('regions', 'regions.id', 'territories.region_id')
-            ->join('teams', 'teams.id', 'distributions.team_id')
-            ->where('distributions.status', DistributionStatus::Posted->value)
-            ->groupBy('regions.id', 'regions.name', 'territories.id', 'territories.name', 'teams.id', 'teams.name')
+        // Aggregate in an inner DB::table query so the GROUP BY is self-contained.
+        // Wrap it via fromSub with the alias 'rollup' and set the model's table to
+        // 'rollup' so Filament's tiebreaker becomes ORDER BY rollup.id — the
+        // ROW_NUMBER() result — instead of distributions.id which is not in GROUP BY.
+        $inner = DB::table('distributions as d')
+            ->join('territories as t', 't.id', '=', 'd.territory_id')
+            ->join('regions as r', 'r.id', '=', 't.region_id')
+            ->join('teams as tm', 'tm.id', '=', 'd.team_id')
+            ->where('d.status', DistributionStatus::Posted->value)
+            ->groupBy('r.id', 'r.name', 't.id', 't.name', 'tm.id', 'tm.name')
             ->selectRaw('
-                ROW_NUMBER() OVER (ORDER BY regions.name, territories.name, teams.name) AS id,
-                regions.name   AS region_name,
-                territories.name AS territory_name,
-                teams.name     AS team_name,
-                COUNT(DISTINCT distributions.id) AS invoice_count,
-                SUM(distributions.total_amount)  AS total_value
-            ')
-            ->orderBy('regions.name')
-            ->orderBy('territories.name')
-            ->orderBy('teams.name');
+                ROW_NUMBER() OVER (ORDER BY r.name, t.name, tm.name) AS id,
+                r.name   AS region_name,
+                t.name   AS territory_name,
+                tm.name  AS team_name,
+                COUNT(DISTINCT d.id)  AS invoice_count,
+                SUM(d.total_amount)   AS total_value
+            ');
+
+        $model = new Distribution;
+        $model->setTable('rollup');
+
+        return $model->newQuery()
+            ->fromSub($inner, 'rollup')
+            ->select('*');
     }
 }

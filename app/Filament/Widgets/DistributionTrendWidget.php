@@ -31,7 +31,7 @@ class DistributionTrendWidget extends ChartWidget
             ->groupBy('month')
             ->orderBy('month')
             ->pluck('total', 'month')
-            ->mapKeys(fn ($v, string $k): string => Carbon::parse($k)->format('Y-m'));
+            ->mapWithKeys(fn ($v, string $k): array => [Carbon::parse($k)->format('Y-m') => $v]);
 
         $labels = $months->map(fn (Carbon $m): string => $m->format('M Y'))->all();
         $data = $months->map(fn (Carbon $m): float => (float) ($totals[$m->format('Y-m')] ?? 0))->all();

@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Shared\Resources\Calls\CallResource;
+use App\Filament\Shared\Resources\Deposits\DepositResource;
 use App\Filament\Shared\Resources\Distributions\DistributionResource;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Http\Middleware\Authenticate;
@@ -42,6 +43,7 @@ class FieldPanelProvider extends PanelProvider
             // Shared with the management panel — one class, behaviour varies by viewer.
             ->resources([
                 CallResource::class,
+                DepositResource::class,
                 DistributionResource::class,
             ])
             ->discoverPages(in: app_path('Filament/Field/Pages'), for: 'App\Filament\Field\Pages')

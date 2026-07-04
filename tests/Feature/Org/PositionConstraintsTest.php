@@ -44,7 +44,57 @@ test('a liberal territory allows two active positions for the same team', functi
 
     expect($first->enforce_team_uniqueness)->toBeFalse()
         ->and($second->enforce_team_uniqueness)->toBeFalse()
-        ->and(Position::count())->toBe(2);
+        ->and(Position::count())->toBe(2)
+        ->and($first->code)->toBe("{$territory->code}-{$team->code}")
+        ->and($second->code)->toBe("{$territory->code}-{$team->code}-2")
+        ->and($first->code)->not->toBe($second->code);
+});
+
+test('positions sharing a territory and team get distinct suffixed codes', function (): void {
+    $territory = Territory::factory()->liberal()->create();
+    $team = Team::factory()->liberal()->create();
+
+    $positions = Position::factory()->count(3)->create([
+        'territory_id' => $territory->id,
+        'team_id' => $team->id,
+        'status' => PositionStatus::Active,
+    ]);
+
+    expect($positions->pluck('code')->all())->toBe([
+        "{$territory->code}-{$team->code}",
+        "{$territory->code}-{$team->code}-2",
+        "{$territory->code}-{$team->code}-3",
+    ])->and($positions->pluck('code')->unique())->toHaveCount(3);
+});
+
+test('renaming a territory code re-syncs its positions codes', function (): void {
+    $territory = Territory::factory()->strict()->create();
+    $team = Team::factory()->strict()->create();
+    $position = Position::factory()->create([
+        'territory_id' => $territory->id,
+        'team_id' => $team->id,
+    ]);
+
+    expect($position->code)->toBe("{$territory->code}-{$team->code}");
+
+    $territory->update(['code' => 'NEWCODE']);
+
+    expect($position->fresh()->code)->toBe("NEWCODE-{$team->code}");
+});
+
+test('renaming a team code re-syncs its positions codes', function (): void {
+    $territory = Territory::factory()->strict()->create();
+    $team = Team::factory()->strict()->create();
+    $position = Position::factory()->create([
+        'territory_id' => $territory->id,
+        'team_id' => $team->id,
+    ]);
+
+    expect($position->code)->toBe("{$territory->code}-{$team->code}");
+
+    $team->update(['code' => 'NEWTEAMCODE']);
+
+    expect($position->fresh()->code)->toBe("{$territory->code}-NEWTEAMCODE");
 });
 
 test('the observer sets enforce_team_uniqueness from the territory policy', function (): void {

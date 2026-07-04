@@ -4,9 +4,11 @@ namespace App\Providers;
 
 use App\Models\Position;
 use App\Models\TargetAssignment;
+use App\Models\Team;
 use App\Models\Territory;
 use App\Observers\PositionObserver;
 use App\Observers\TargetAssignmentObserver;
+use App\Observers\TeamObserver;
 use App\Observers\TerritoryObserver;
 use Illuminate\Support\ServiceProvider;
 
@@ -25,6 +27,7 @@ class ObserverServiceProvider extends ServiceProvider
     private const OBSERVERS = [
         Position::class => PositionObserver::class,
         Territory::class => TerritoryObserver::class,
+        Team::class => TeamObserver::class,
         TargetAssignment::class => TargetAssignmentObserver::class,
     ];
 

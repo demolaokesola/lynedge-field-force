@@ -73,7 +73,9 @@ class TopBottomRepsWidget extends BaseWidget
     private function buildQuery(?Cycle $cycle): Builder
     {
         if ($cycle === null) {
-            return User::query()->whereRaw('1 = 0');
+            return User::query()
+                ->whereRaw('1 = 0')
+                ->selectRaw('users.id, users.name, NULL::numeric AS target_ytd, NULL::numeric AS actual_ytd, NULL::numeric AS attainment_pct');
         }
 
         $targets = RepMonthlyTarget::query()

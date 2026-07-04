@@ -21,7 +21,6 @@ test('the form rejects a liberal team in a strict territory', function (): void 
         ->fillForm([
             'territory_id' => $territory->id,
             'team_id' => $team->id,
-            'code' => 'POS-A1',
             'label' => 'Rep slot',
             'status' => PositionStatus::Active->value,
         ])
@@ -37,7 +36,6 @@ test('the form rejects a strict team in a liberal territory', function (): void 
         ->fillForm([
             'territory_id' => $territory->id,
             'team_id' => $team->id,
-            'code' => 'POS-B1',
             'label' => 'Rep slot',
             'status' => PositionStatus::Active->value,
         ])
@@ -59,7 +57,6 @@ test('the form rejects a second active position for the same team in a strict te
         ->fillForm([
             'territory_id' => $territory->id,
             'team_id' => $team->id,
-            'code' => 'POS-C1',
             'label' => 'Duplicate slot',
             'status' => PositionStatus::Active->value,
         ])
@@ -75,7 +72,6 @@ test('the form accepts a matching team and territory pair', function (): void {
         ->fillForm([
             'territory_id' => $territory->id,
             'team_id' => $team->id,
-            'code' => 'POS-D1',
             'label' => 'Valid slot',
             'status' => PositionStatus::Active->value,
         ])
@@ -85,7 +81,7 @@ test('the form accepts a matching team and territory pair', function (): void {
     $this->assertDatabaseHas('positions', [
         'territory_id' => $territory->id,
         'team_id' => $team->id,
-        'code' => 'POS-D1',
+        'code' => "{$territory->code}-{$team->code}",
         'enforce_team_uniqueness' => true,
     ]);
 });

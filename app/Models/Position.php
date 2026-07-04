@@ -15,10 +15,12 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 /**
  * The atomic manned unit: a (territory, team) pair.
  *
- * `enforce_team_uniqueness` is observer-managed (mirrors territory.team_policy ===
- * strict) and is deliberately NOT mass-assignable — never let the client set it.
+ * `code` and `enforce_team_uniqueness` are both observer-managed (`code` is derived
+ * from territory.code + team.code; `enforce_team_uniqueness` mirrors
+ * territory.team_policy === strict) and are deliberately NOT mass-assignable — never
+ * let the client set them.
  */
-#[Fillable(['territory_id', 'team_id', 'code', 'label', 'status'])]
+#[Fillable(['territory_id', 'team_id', 'label', 'status'])]
 class Position extends Model
 {
     /** @use HasFactory<PositionFactory> */

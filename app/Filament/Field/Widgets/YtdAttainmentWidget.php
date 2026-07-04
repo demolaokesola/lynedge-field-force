@@ -62,7 +62,9 @@ class YtdAttainmentWidget extends BaseWidget
     private function buildQuery(?object $user, ?Cycle $cycle, Carbon $asOf): Builder
     {
         if ($user === null || $cycle === null) {
-            return Product::query()->whereRaw('1 = 0');
+            return Product::query()
+                ->whereRaw('1 = 0')
+                ->selectRaw('products.id, products.name AS product_name, NULL::numeric AS target_ytd, NULL::numeric AS actual_ytd, NULL::numeric AS attainment_pct');
         }
 
         $actuals = DistributionLine::query()

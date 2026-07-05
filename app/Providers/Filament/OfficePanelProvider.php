@@ -33,7 +33,7 @@ class OfficePanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Amber,
             ])
-            ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
+            ->discoverResources(in: app_path('Filament/Office/Resources'), for: 'App\Filament\Office\Resources')
             ->resources([
                 DepositResource::class,
             ])

@@ -18,7 +18,10 @@ class DatabaseSeeder extends Seeder
             RolesSeeder::class,
             DemoUsersSeeder::class,
             DemandCreatorTypeSeeder::class,
+            RegionSeeder::class,
+            TerritorySeeder::class,
             MasterDataSeeder::class,
+            PositionSeeder::class,
         ]);
     }
 }

@@ -72,7 +72,7 @@ class DistributionForm
     }
 
     /**
-     * The acting rep's active positions, as id => "Label — Territory".
+     * The acting rep's active positions, as id => "Code — Territory".
      *
      * @return array<int, string>
      */
@@ -87,7 +87,7 @@ class DistributionForm
         return app(RepScope::class)->activePositions($user)
             ->load('territory')
             ->mapWithKeys(fn (Position $position): array => [
-                $position->id => "{$position->label} — {$position->territory->name}",
+                $position->id => "{$position->code} — {$position->territory->name}",
             ])
             ->all();
     }

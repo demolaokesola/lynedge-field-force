@@ -1,7 +1,7 @@
 <?php
 
 use App\Enums\PositionStatus;
-use App\Filament\Resources\Positions\Pages\CreatePosition;
+use App\Filament\Office\Resources\Positions\Pages\CreatePosition;
 use App\Models\Position;
 use App\Models\Team;
 use App\Models\Territory;
@@ -19,9 +19,9 @@ test('the form rejects a liberal team in a strict territory', function (): void 
 
     livewire(CreatePosition::class)
         ->fillForm([
+            'region_id' => $territory->region_id,
             'territory_id' => $territory->id,
             'team_id' => $team->id,
-            'label' => 'Rep slot',
             'status' => PositionStatus::Active->value,
         ])
         ->call('create')
@@ -34,9 +34,9 @@ test('the form rejects a strict team in a liberal territory', function (): void 
 
     livewire(CreatePosition::class)
         ->fillForm([
+            'region_id' => $territory->region_id,
             'territory_id' => $territory->id,
             'team_id' => $team->id,
-            'label' => 'Rep slot',
             'status' => PositionStatus::Active->value,
         ])
         ->call('create')
@@ -55,9 +55,9 @@ test('the form rejects a second active position for the same team in a strict te
 
     livewire(CreatePosition::class)
         ->fillForm([
+            'region_id' => $territory->region_id,
             'territory_id' => $territory->id,
             'team_id' => $team->id,
-            'label' => 'Duplicate slot',
             'status' => PositionStatus::Active->value,
         ])
         ->call('create')
@@ -70,9 +70,9 @@ test('the form accepts a matching team and territory pair', function (): void {
 
     livewire(CreatePosition::class)
         ->fillForm([
+            'region_id' => $territory->region_id,
             'territory_id' => $territory->id,
             'team_id' => $team->id,
-            'label' => 'Valid slot',
             'status' => PositionStatus::Active->value,
         ])
         ->call('create')

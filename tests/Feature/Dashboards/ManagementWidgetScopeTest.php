@@ -103,14 +103,12 @@ describe('VacantPositionsWidget', function (): void {
         $vacant = Position::factory()->create([
             'territory_id' => $this->terrA->id,
             'status' => PositionStatus::Active,
-            'label' => 'Vacant Position Here',
         ]);
 
         // Occupied: active position WITH an open assignment.
         $occupied = Position::factory()->create([
             'territory_id' => $this->terrA->id,
             'status' => PositionStatus::Active,
-            'label' => 'Occupied Position Here',
         ]);
         PositionAssignment::factory()->create([
             'position_id' => $occupied->id,
@@ -158,7 +156,6 @@ describe('StrictCoverageGapsWidget', function (): void {
             'territory_id' => $strictTerr->id,
             'team_id' => $strictTeam->id,
             'status' => PositionStatus::Active,
-            'label' => 'Strict Gap',
         ]);
 
         // Liberal vacant position — should NOT appear.
@@ -167,7 +164,6 @@ describe('StrictCoverageGapsWidget', function (): void {
             'territory_id' => $liberalTerr->id,
             'team_id' => $liberalTeam->id,
             'status' => PositionStatus::Active,
-            'label' => 'Liberal Gap',
         ]);
 
         $this->actingAs($lead);

@@ -24,7 +24,6 @@ class PositionFactory extends Factory
         return [
             'territory_id' => Territory::factory()->strict(),
             'team_id' => Team::factory()->strict(),
-            'label' => fake()->jobTitle(),
             'status' => PositionStatus::Active,
         ];
     }

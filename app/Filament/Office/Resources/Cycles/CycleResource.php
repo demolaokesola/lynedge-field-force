@@ -1,0 +1,53 @@
+<?php
+
+namespace App\Filament\Office\Resources\Cycles;
+
+use App\Filament\Office\Resources\Cycles\Pages\CreateCycle;
+use App\Filament\Office\Resources\Cycles\Pages\EditCycle;
+use App\Filament\Office\Resources\Cycles\Pages\ListCycles;
+use App\Filament\Office\Resources\Cycles\Schemas\CycleForm;
+use App\Filament\Office\Resources\Cycles\Tables\CyclesTable;
+use App\Models\Cycle;
+use BackedEnum;
+use Filament\Resources\Resource;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Table;
+use UnitEnum;
+
+class CycleResource extends Resource
+{
+    protected static ?string $model = Cycle::class;
+
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendar;
+
+    protected static string|UnitEnum|null $navigationGroup = 'Targets';
+
+    protected static ?string $recordTitleAttribute = 'name';
+
+    public static function form(Schema $schema): Schema
+    {
+        return CycleForm::configure($schema);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return CyclesTable::configure($table);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            //
+        ];
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => ListCycles::route('/'),
+            'create' => CreateCycle::route('/create'),
+            'edit' => EditCycle::route('/{record}/edit'),
+        ];
+    }
+}

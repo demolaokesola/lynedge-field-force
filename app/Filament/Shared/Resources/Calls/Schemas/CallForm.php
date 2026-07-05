@@ -62,7 +62,7 @@ class CallForm
     }
 
     /**
-     * The acting rep's active positions, as id => "Label — Territory".
+     * The acting rep's active positions, as id => "Code — Territory".
      *
      * @return array<int, string>
      */
@@ -74,12 +74,7 @@ class CallForm
             return [];
         }
 
-        return app(RepScope::class)->activePositions($user)
-            ->load('territory')
-            ->mapWithKeys(fn (Position $position): array => [
-                $position->id => "{$position->label} — {$position->territory->name}",
-            ])
-            ->all();
+        return app(RepScope::class)->positionOptions($user);
     }
 
     /**

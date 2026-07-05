@@ -17,8 +17,7 @@ class VacantPositionsExporter extends Exporter
             ExportColumn::make('territory.region.name')->label('Region'),
             ExportColumn::make('territory.name')->label('Territory'),
             ExportColumn::make('team.name')->label('Team'),
-            ExportColumn::make('label')->label('Position'),
-            ExportColumn::make('code')->label('Code'),
+            ExportColumn::make('code')->label('Position'),
             ExportColumn::make('status')->label('Status'),
         ];
     }

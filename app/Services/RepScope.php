@@ -64,4 +64,20 @@ class RepScope
                     ->orWhereDate('effective_to', '>=', $on)))
             ->get();
     }
+
+    /**
+     * The rep's active positions as id => "Code — Territory", for Filament position
+     * selects across the field panel (Calls, Customers, Demand Creators).
+     *
+     * @return array<int, string>
+     */
+    public function positionOptions(User $rep): array
+    {
+        return $this->activePositions($rep)
+            ->load('territory')
+            ->mapWithKeys(fn (Position $position): array => [
+                $position->id => "{$position->code} — {$position->territory->name}",
+            ])
+            ->all();
+    }
 }

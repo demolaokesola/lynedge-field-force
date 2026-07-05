@@ -2,17 +2,10 @@
 
 namespace Database\Seeders;
 
-use App\Enums\CustomerType;
 use App\Enums\TeamKind;
-use App\Enums\TeamPolicy;
-use App\Models\Customer;
-use App\Models\DemandCreator;
-use App\Models\DemandCreatorType;
 use App\Models\Product;
-use App\Models\Region;
 use App\Models\Relations\TeamMembership;
 use App\Models\Team;
-use App\Models\Territory;
 use Illuminate\Database\Seeder;
 
 /**
@@ -72,44 +65,6 @@ class MasterDataSeeder extends Seeder
             );
 
             $product->teams()->sync($teamCodes === [] ? [] : $teams->only($teamCodes)->pluck('id')->all());
-        }
-
-        $this->seedTerritoryData();
-    }
-
-    private function seedTerritoryData(): void
-    {
-        $region = Region::firstOrCreate(['code' => 'SW'], ['name' => 'South West']);
-
-        $lagos = Territory::firstOrCreate(
-            ['code' => 'LAG-101'],
-            ['region_id' => $region->id, 'name' => 'Lagos Mainland', 'team_policy' => TeamPolicy::Strict],
-        );
-        $ibadan = Territory::firstOrCreate(
-            ['code' => 'IBA-102'],
-            ['region_id' => $region->id, 'name' => 'Ibadan', 'team_policy' => TeamPolicy::Liberal],
-        );
-
-        foreach ([$lagos, $ibadan] as $territory) {
-            Customer::firstOrCreate(
-                ['territory_id' => $territory->id, 'name' => "HealthPlus {$territory->name}"],
-                ['type' => CustomerType::Pharmacy, 'phone' => '08030000000', 'address' => "1 Market Rd, {$territory->name}"],
-            );
-            Customer::firstOrCreate(
-                ['territory_id' => $territory->id, 'name' => "{$territory->name} General Hospital"],
-                ['type' => CustomerType::Hospital, 'phone' => '08030000001', 'address' => "Hospital Rd, {$territory->name}"],
-            );
-
-            $type = DemandCreatorType::firstOrCreate(['name' => 'Hospital Pharmacist']);
-            DemandCreator::firstOrCreate(
-                ['territory_id' => $territory->id, 'name' => "Pharm. {$territory->name} Lead"],
-                [
-                    'demand_creator_type_id' => $type->id,
-                    'affiliation' => "{$territory->name} General Hospital",
-                    'phone' => '08030000002',
-                    'address' => "Hospital Rd, {$territory->name}",
-                ],
-            );
         }
     }
 }

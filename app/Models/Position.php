@@ -20,7 +20,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * territory.team_policy === strict) and are deliberately NOT mass-assignable — never
  * let the client set them.
  */
-#[Fillable(['territory_id', 'team_id', 'label', 'status'])]
+#[Fillable(['territory_id', 'team_id', 'status'])]
 class Position extends Model
 {
     /** @use HasFactory<PositionFactory> */

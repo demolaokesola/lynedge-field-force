@@ -2,7 +2,6 @@
 
 namespace App\Filament\Shared\Resources\Distributions;
 
-use App\Filament\Shared\Resources\Distributions\Pages\CreateDistribution;
 use App\Filament\Shared\Resources\Distributions\Pages\EditDistribution;
 use App\Filament\Shared\Resources\Distributions\Pages\ListDistributions;
 use App\Filament\Shared\Resources\Distributions\Schemas\DistributionForm;
@@ -59,7 +58,6 @@ class DistributionResource extends Resource
     {
         return [
             'index' => ListDistributions::route('/'),
-            'create' => CreateDistribution::route('/create'),
             'edit' => EditDistribution::route('/{record}/edit'),
         ];
     }

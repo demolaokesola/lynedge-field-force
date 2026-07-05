@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Models\DemandCreator;
 use App\Models\DemandCreatorType;
 use App\Models\Territory;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -25,5 +26,13 @@ class DemandCreatorFactory extends Factory
             'phone' => '0'.fake()->numerify('80########'),
             'address' => fake()->streetAddress(),
         ];
+    }
+
+    /**
+     * Attribute the demand creator to the rep who created it.
+     */
+    public function by(User $user): static
+    {
+        return $this->state(['created_by' => $user->id]);
     }
 }

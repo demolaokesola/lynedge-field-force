@@ -1,0 +1,38 @@
+<?php
+
+namespace App\Filament\Field\Resources\DemandCreators\Tables;
+
+use Filament\Actions\EditAction;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
+
+class DemandCreatorsTable
+{
+    public static function configure(Table $table): Table
+    {
+        return $table
+            ->columns([
+                TextColumn::make('name')
+                    ->searchable()
+                    ->sortable(),
+                TextColumn::make('type.name')
+                    ->badge()
+                    ->sortable(),
+                TextColumn::make('territory.name')
+                    ->sortable(),
+                TextColumn::make('phone')
+                    ->searchable(),
+            ])
+            ->filters([
+                SelectFilter::make('type')
+                    ->relationship('type', 'name')
+                    ->searchable()
+                    ->preload(),
+            ])
+            ->recordActions([
+                // Hidden automatically when DemandCreatorPolicy::update() denies (not own row).
+                EditAction::make(),
+            ]);
+    }
+}

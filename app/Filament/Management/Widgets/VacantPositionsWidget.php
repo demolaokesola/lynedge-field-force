@@ -38,11 +38,8 @@ class VacantPositionsWidget extends BaseWidget
                 TextColumn::make('team.name')
                     ->label('Team')
                     ->sortable(),
-                TextColumn::make('label')
-                    ->label('Position')
-                    ->searchable(),
                 TextColumn::make('code')
-                    ->label('Code')
+                    ->label('Position')
                     ->searchable(),
                 TextColumn::make('status')
                     ->badge(),

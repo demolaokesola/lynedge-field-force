@@ -39,6 +39,7 @@ class FieldPanelProvider extends PanelProvider
             ->topNavigation()
             ->maxContentWidth(Width::Full)
             ->sidebarCollapsibleOnDesktop()
+            ->discoverClusters(in: app_path('Filament/Field/Clusters'), for: 'App\Filament\Field\Clusters')
             ->discoverResources(in: app_path('Filament/Field/Resources'), for: 'App\Filament\Field\Resources')
             // Shared with the management panel — one class, behaviour varies by viewer.
             ->resources([

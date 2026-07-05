@@ -39,11 +39,9 @@ class StrictCoverageGapsWidget extends BaseWidget
                 TextColumn::make('team.name')
                     ->label('Strict Team')
                     ->sortable(),
-                TextColumn::make('label')
+                TextColumn::make('code')
                     ->label('Position')
                     ->searchable(),
-                TextColumn::make('code')
-                    ->label('Code'),
             ])
             ->defaultSort('territory.name')
             ->striped()

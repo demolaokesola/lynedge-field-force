@@ -1,8 +1,8 @@
 <?php
 
-use App\Filament\Resources\Products\Pages\CreateProduct;
-use App\Filament\Resources\Products\Pages\EditProduct;
-use App\Filament\Resources\Products\Pages\ListProducts;
+use App\Filament\Office\Resources\Products\Pages\CreateProduct;
+use App\Filament\Office\Resources\Products\Pages\EditProduct;
+use App\Filament\Office\Resources\Products\Pages\ListProducts;
 use App\Models\Product;
 use App\Models\Team;
 use App\Models\User;

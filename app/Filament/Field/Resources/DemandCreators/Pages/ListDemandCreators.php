@@ -13,7 +13,11 @@ class ListDemandCreators extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make(),
+            // Navigate to the dedicated create page instead of opening the default
+            // modal — position_id -> territory_id derivation only happens there
+            // (see CreateDemandCreator::mutateFormDataBeforeCreate).
+            CreateAction::make()
+                ->url(fn (): string => DemandCreatorResource::getUrl('create')),
         ];
     }
 }

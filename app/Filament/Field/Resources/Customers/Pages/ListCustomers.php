@@ -13,7 +13,11 @@ class ListCustomers extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make(),
+            // Navigate to the dedicated create page instead of opening the default
+            // modal — position_id -> territory_id derivation only happens there
+            // (see CreateCustomer::mutateFormDataBeforeCreate).
+            CreateAction::make()
+                ->url(fn (): string => CustomerResource::getUrl('create')),
         ];
     }
 }

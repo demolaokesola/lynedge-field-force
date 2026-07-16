@@ -9,7 +9,7 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class OutstandingDepositsWidget extends BaseWidget
 {
-    protected ?string $heading = 'Outstanding Deposits';
+    // protected ?string $heading = 'Outstanding Deposits';
 
     protected static ?int $sort = 4;
 

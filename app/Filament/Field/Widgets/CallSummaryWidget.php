@@ -9,7 +9,7 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class CallSummaryWidget extends BaseWidget
 {
-    protected ?string $heading = 'My Calls — This Month';
+    // protected ?string $heading = 'My Calls — This Month';
 
     protected static ?int $sort = 2;
 

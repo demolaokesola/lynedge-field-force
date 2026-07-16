@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\CustomerType;
+use App\Filament\Field\Resources\Customers\CustomerResource;
 use App\Filament\Field\Resources\Customers\Pages\CreateCustomer;
 use App\Filament\Field\Resources\Customers\Pages\ListCustomers;
 use App\Models\Customer;
@@ -88,6 +89,20 @@ test('a rep can edit their own customer but not another rep\'s customer', functi
 
     expect($this->rep->can('update', $own))->toBeTrue()
         ->and($this->rep->can('update', $foreign))->toBeFalse();
+});
+
+test('the "new customer" button on the list page links to the create page instead of opening the default modal', function (): void {
+    // Regression guard: the default header CreateAction is a bare modal that
+    // fills Customer directly and drops position_id (not a column), leaving
+    // territory_id null. It must link to CreateCustomer's page instead, which
+    // derives territory_id from the chosen position.
+    $createUrl = CustomerResource::getUrl('create');
+
+    $this->get(CustomerResource::getUrl('index'))
+        ->assertOk()
+        ->assertSee($createUrl, false);
+
+    $this->get($createUrl)->assertOk();
 });
 
 test('sales_rep, supervisor and platform_admin may create customers but other roles may not', function (): void {

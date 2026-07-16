@@ -1,5 +1,6 @@
 <?php
 
+use App\Filament\Field\Resources\DemandCreators\DemandCreatorResource;
 use App\Filament\Field\Resources\DemandCreators\Pages\CreateDemandCreator;
 use App\Filament\Field\Resources\DemandCreators\Pages\ListDemandCreators;
 use App\Models\DemandCreator;
@@ -91,6 +92,20 @@ test('a rep can edit their own demand creator but not another rep\'s demand crea
 
     expect($this->rep->can('update', $own))->toBeTrue()
         ->and($this->rep->can('update', $foreign))->toBeFalse();
+});
+
+test('the "new demand creator" button on the list page links to the create page instead of opening the default modal', function (): void {
+    // Regression guard: the default header CreateAction is a bare modal that
+    // fills DemandCreator directly and drops position_id (not a column), leaving
+    // territory_id null. It must link to CreateDemandCreator's page instead, which
+    // derives territory_id from the chosen position.
+    $createUrl = DemandCreatorResource::getUrl('create');
+
+    $this->get(DemandCreatorResource::getUrl('index'))
+        ->assertOk()
+        ->assertSee($createUrl, false);
+
+    $this->get($createUrl)->assertOk();
 });
 
 test('sales_rep, supervisor and platform_admin may create demand creators but other roles may not', function (): void {

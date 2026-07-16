@@ -3,6 +3,8 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Field\Pages\Dashboard;
+use App\Filament\Field\Widgets\CallSummaryWidget;
+use App\Filament\Field\Widgets\OutstandingDepositsWidget;
 use App\Filament\Shared\Resources\Calls\CallResource;
 use App\Filament\Shared\Resources\Deposits\DepositResource;
 use App\Filament\Shared\Resources\Distributions\DistributionResource;
@@ -15,7 +17,6 @@ use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\Support\Enums\Width;
-use Filament\Widgets\AccountWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -53,7 +54,8 @@ class FieldPanelProvider extends PanelProvider
             ])
             ->discoverWidgets(in: app_path('Filament/Field/Widgets'), for: 'App\Filament\Field\Widgets')
             ->widgets([
-                // AccountWidget::class,
+                // CallSummaryWidget::class,
+                // OutstandingDepositsWidget::class,
             ])
             ->plugin(FilamentShieldPlugin::make())
             ->middleware([

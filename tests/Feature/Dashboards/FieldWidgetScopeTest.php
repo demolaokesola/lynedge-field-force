@@ -3,6 +3,8 @@
 use App\Enums\DepositStatus;
 use App\Filament\Field\Widgets\CallSummaryWidget;
 use App\Filament\Field\Widgets\OutstandingDepositsWidget;
+use App\Filament\Field\Widgets\ProductPerformanceOverviewWidget;
+use App\Filament\Field\Widgets\ProductPerformanceTrendWidget;
 use App\Filament\Field\Widgets\RecentDistributionsWidget;
 use App\Filament\Field\Widgets\YtdAttainmentWidget;
 use App\Models\Call;
@@ -10,6 +12,7 @@ use App\Models\Customer;
 use App\Models\Cycle;
 use App\Models\Deposit;
 use App\Models\Distribution;
+use App\Models\DistributionLine;
 use App\Models\Position;
 use App\Models\PositionAssignment;
 use App\Models\Product;
@@ -124,5 +127,103 @@ describe('OutstandingDepositsWidget', function (): void {
         livewire(OutstandingDepositsWidget::class)
             ->assertSee('1')
             ->assertDontSee('99,999');
+    });
+});
+
+describe('ProductPerformanceOverviewWidget', function (): void {
+    it('shows current-cycle target, actual and attainment for the rep and product only', function (): void {
+        $cycle = Cycle::factory()->create([
+            'is_current' => true,
+            'starts_on' => now()->startOfMonth(),
+            'ends_on' => now()->startOfMonth()->addYear()->subDay(),
+        ]);
+        $product = Product::factory()->create();
+
+        RepMonthlyTarget::factory()->create([
+            'cycle_id' => $cycle->id,
+            'user_id' => $this->rep->id,
+            'product_id' => $product->id,
+            'year_month' => now()->startOfMonth(),
+            'target_qty' => 40,
+        ]);
+        RepMonthlyTarget::factory()->create([
+            'cycle_id' => $cycle->id,
+            'user_id' => $this->otherRep->id,
+            'product_id' => $product->id,
+            'year_month' => now()->startOfMonth(),
+            'target_qty' => 999,
+        ]);
+
+        $myDistribution = Distribution::factory()->by($this->rep)->forPosition($this->position)->posted()
+            ->create(['invoice_date' => now()]);
+        DistributionLine::create([
+            'distribution_id' => $myDistribution->id,
+            'product_id' => $product->id,
+            'quantity' => 20,
+            'unit_price' => 100,
+        ]);
+
+        $otherDistribution = Distribution::factory()->by($this->otherRep)->forPosition($this->position)->posted()
+            ->create(['invoice_date' => now()]);
+        DistributionLine::create([
+            'distribution_id' => $otherDistribution->id,
+            'product_id' => $product->id,
+            'quantity' => 999,
+            'unit_price' => 100,
+        ]);
+
+        $this->actingAs($this->rep);
+
+        // 20/40 = 50.0% attainment for the rep; the other rep's 999s must not leak in.
+        livewire(ProductPerformanceOverviewWidget::class, ['record' => $product])
+            ->assertSee('40.00')
+            ->assertSee('20.00')
+            ->assertSee('50.0%')
+            ->assertDontSee('999.00');
+    });
+});
+
+describe('ProductPerformanceTrendWidget', function (): void {
+    it('returns month-by-month target vs actual for the rep and product only', function (): void {
+        $cycle = Cycle::factory()->create([
+            'is_current' => true,
+            'starts_on' => now()->startOfMonth()->subMonths(2),
+            'ends_on' => now()->startOfMonth()->subMonths(2)->addYear()->subDay(),
+        ]);
+        $product = Product::factory()->create();
+
+        RepMonthlyTarget::factory()->create([
+            'cycle_id' => $cycle->id,
+            'user_id' => $this->rep->id,
+            'product_id' => $product->id,
+            'year_month' => now()->startOfMonth(),
+            'target_qty' => 40,
+        ]);
+
+        $distribution = Distribution::factory()->by($this->rep)->forPosition($this->position)->posted()
+            ->create(['invoice_date' => now()]);
+        DistributionLine::create([
+            'distribution_id' => $distribution->id,
+            'product_id' => $product->id,
+            'quantity' => 20,
+            'unit_price' => 100,
+        ]);
+
+        $this->actingAs($this->rep);
+
+        $widget = new ProductPerformanceTrendWidget;
+        $widget->record = $product;
+
+        $data = (function (): array {
+            return $this->getData();
+        })->call($widget);
+
+        $currentMonthIndex = array_search(now()->format('M Y'), $data['labels'], true);
+
+        expect($currentMonthIndex)->not->toBeFalse()
+            ->and($data['datasets'][0]['label'])->toBe('Target')
+            ->and($data['datasets'][0]['data'][$currentMonthIndex])->toBe(40.0)
+            ->and($data['datasets'][1]['label'])->toBe('Actual')
+            ->and($data['datasets'][1]['data'][$currentMonthIndex])->toBe(20.0);
     });
 });

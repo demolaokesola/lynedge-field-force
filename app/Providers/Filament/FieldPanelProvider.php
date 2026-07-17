@@ -8,7 +8,6 @@ use App\Filament\Field\Widgets\OutstandingDepositsWidget;
 use App\Filament\Shared\Resources\Calls\CallResource;
 use App\Filament\Shared\Resources\Deposits\DepositResource;
 use App\Filament\Shared\Resources\Distributions\DistributionResource;
-use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -57,7 +56,6 @@ class FieldPanelProvider extends PanelProvider
                 // CallSummaryWidget::class,
                 // OutstandingDepositsWidget::class,
             ])
-            ->plugin(FilamentShieldPlugin::make())
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

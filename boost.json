@@ -7,12 +7,16 @@
     "mcp": true,
     "nightwatch": false,
     "packages": [
-        "filament/filament"
+        "filament/filament",
+        "spatie/laravel-activitylog",
+        "spatie/laravel-permission"
     ],
     "sail": true,
     "skills": [
         "laravel-best-practices",
         "pest-testing",
+        "tailwindcss-development",
+        "laravel-permission-development",
         "deploying-laravel-cloud"
     ]
 }

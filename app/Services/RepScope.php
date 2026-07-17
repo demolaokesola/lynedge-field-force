@@ -44,6 +44,21 @@ class RepScope
     }
 
     /**
+     * Products the rep may currently see across ALL their active positions — the union
+     * of team products, filtered to active=true, for "My Products" in the field panel.
+     *
+     * @return Builder<Product>
+     */
+    public function productsForUser(User $rep, ?Carbon $on = null): Builder
+    {
+        $teamIds = $this->activePositions($rep, $on)->pluck('team_id')->unique();
+
+        return Product::query()
+            ->where('active', true)
+            ->whereHas('teams', fn (Builder $q): Builder => $q->whereIn('teams.id', $teamIds));
+    }
+
+    /**
      * The rep's active positions across ALL territories on a given date — the union the
      * field form offers as the position a call is logged under, and the basis for the
      * "block if the rep has no active position" guard.

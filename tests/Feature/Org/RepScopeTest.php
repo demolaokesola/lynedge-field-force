@@ -2,6 +2,8 @@
 
 use App\Models\Position;
 use App\Models\PositionAssignment;
+use App\Models\Product;
+use App\Models\Team;
 use App\Models\Territory;
 use App\Models\User;
 use App\Services\RepScope;
@@ -84,4 +86,58 @@ test('it excludes positions assigned to a different rep', function (): void {
     ]);
 
     expect($this->scope->invoiceablePositions($rep, $territory->id))->toBeEmpty();
+});
+
+test('productsForUser returns only active products belonging to the rep\'s team', function (): void {
+    $team = Team::factory()->strict()->create();
+    $territory = Territory::factory()->strict()->create();
+    $position = Position::factory()->create(['territory_id' => $territory->id, 'team_id' => $team->id]);
+
+    $rep = User::factory()->create();
+    PositionAssignment::factory()->create([
+        'position_id' => $position->id,
+        'user_id' => $rep->id,
+        'effective_to' => null,
+    ]);
+
+    $ownActive = Product::factory()->create(['active' => true]);
+    $ownActive->teams()->attach($team->id);
+
+    $ownInactive = Product::factory()->create(['active' => false]);
+    $ownInactive->teams()->attach($team->id);
+
+    $otherTeam = Team::factory()->strict()->create();
+    $foreign = Product::factory()->create(['active' => true]);
+    $foreign->teams()->attach($otherTeam->id);
+
+    $result = $this->scope->productsForUser($rep)->pluck('id')->all();
+
+    expect($result)->toContain($ownActive->id)
+        ->and($result)->not->toContain($ownInactive->id)
+        ->and($result)->not->toContain($foreign->id);
+});
+
+test('productsForUser unions products across the rep\'s active positions in different teams', function (): void {
+    $teamA = Team::factory()->strict()->create();
+    $teamB = Team::factory()->liberal()->create();
+    $territoryA = Territory::factory()->strict()->create();
+    $territoryB = Territory::factory()->liberal()->create();
+
+    $positionA = Position::factory()->create(['territory_id' => $territoryA->id, 'team_id' => $teamA->id]);
+    $positionB = Position::factory()->create(['territory_id' => $territoryB->id, 'team_id' => $teamB->id]);
+
+    $rep = User::factory()->create();
+    PositionAssignment::factory()->create(['position_id' => $positionA->id, 'user_id' => $rep->id, 'effective_to' => null]);
+    PositionAssignment::factory()->create(['position_id' => $positionB->id, 'user_id' => $rep->id, 'effective_to' => null]);
+
+    $productA = Product::factory()->create(['active' => true]);
+    $productA->teams()->attach($teamA->id);
+
+    $productB = Product::factory()->create(['active' => true]);
+    $productB->teams()->attach($teamB->id);
+
+    $result = $this->scope->productsForUser($rep)->pluck('id')->all();
+
+    expect($result)->toContain($productA->id)
+        ->and($result)->toContain($productB->id);
 });

@@ -12,6 +12,8 @@ use Illuminate\Support\Collection;
 
 class TargetMaterializer
 {
+    public function __construct(private readonly RepScope $repScope) {}
+
     /**
      * Rebuild rep_monthly_targets for one rep and cycle from scratch.
      *
@@ -38,7 +40,15 @@ class TargetMaterializer
                 continue;
             }
 
+            // A tier/assignment line may reference a product outside the rep's
+            // team — never materialise a target the rep has no way to sell against.
+            $allowedProductIds = $this->repScope->productsForUser($rep, $month)->pluck('id')->all();
+
             foreach ($this->resolveVolumes($assignment) as $productId => $annual) {
+                if (! in_array($productId, $allowedProductIds, true)) {
+                    continue;
+                }
+
                 $rows[] = [
                     'cycle_id' => $cycle->id,
                     'user_id' => $rep->id,

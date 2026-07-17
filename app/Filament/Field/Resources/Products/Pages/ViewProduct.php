@@ -3,8 +3,8 @@
 namespace App\Filament\Field\Resources\Products\Pages;
 
 use App\Filament\Field\Resources\Products\ProductResource;
-use App\Filament\Field\Widgets\ProductPerformanceOverviewWidget;
-use App\Filament\Field\Widgets\ProductPerformanceTrendWidget;
+use App\Filament\Field\Resources\Products\Widgets\ProductPerformanceOverviewWidget;
+use App\Filament\Field\Resources\Products\Widgets\ProductPerformanceTrendWidget;
 use Filament\Resources\Pages\ViewRecord;
 
 class ViewProduct extends ViewRecord

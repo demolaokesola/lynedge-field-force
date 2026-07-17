@@ -1,6 +1,6 @@
 <?php
 
-use App\Filament\Field\Widgets\ProductPerformanceOverviewWidget;
+use App\Filament\Field\Resources\Products\Widgets\ProductPerformanceOverviewWidget;
 use App\Models\Cycle;
 use App\Models\Product;
 use App\Models\RepMonthlyTarget;

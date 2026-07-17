@@ -40,6 +40,33 @@ class AttainmentService
     }
 
     /**
+     * Sum of materialised monthly targets, across ALL products, up to and including
+     * the month of $asOf. The rep's overall scorecard total, not a single product.
+     */
+    public function targetYtdForRep(User $rep, Cycle $cycle, Carbon $asOf): float
+    {
+        return (float) RepMonthlyTarget::query()
+            ->where('cycle_id', $cycle->id)
+            ->where('user_id', $rep->id)
+            ->where('year_month', '<=', $asOf->copy()->startOfMonth())
+            ->sum('target_qty');
+    }
+
+    /**
+     * Sum of posted distribution quantities, across ALL products, from cycle start
+     * through $asOf. The rep's overall scorecard total, not a single product.
+     */
+    public function actualYtdForRep(User $rep, Cycle $cycle, Carbon $asOf): float
+    {
+        return (float) DistributionLine::query()
+            ->whereHas('distribution', fn ($q) => $q
+                ->where('user_id', $rep->id)
+                ->where('status', DistributionStatus::Posted)
+                ->whereBetween('invoice_date', [$cycle->starts_on, $asOf]))
+            ->sum('quantity');
+    }
+
+    /**
      * Attainment percentage, or null when the target is zero (avoid division by zero).
      */
     public function attainmentPct(float $targetYtd, float $actualYtd): ?float

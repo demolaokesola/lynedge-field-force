@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Field\Widgets;
+namespace App\Filament\Field\Resources\Products\Widgets;
 
 use App\Enums\DistributionStatus;
 use App\Models\Cycle;

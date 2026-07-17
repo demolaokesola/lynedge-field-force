@@ -3,6 +3,8 @@
 use App\Enums\AssignmentReason;
 use App\Enums\TargetBasis;
 use App\Models\Cycle;
+use App\Models\Position;
+use App\Models\PositionAssignment;
 use App\Models\Product;
 use App\Models\RepMonthlyTarget;
 use App\Models\TargetAssignment;
@@ -16,6 +18,28 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 
 uses(RefreshDatabase::class);
+
+/**
+ * Gives the rep an active position and attaches the given products to that
+ * position's team, so RepScope::productsForUser() recognises them as sellable.
+ */
+function assignRepToTeamFor(User $rep, Product ...$products): Position
+{
+    $position = Position::factory()->create();
+
+    PositionAssignment::factory()->create([
+        'position_id' => $position->id,
+        'user_id' => $rep->id,
+        'effective_from' => '2025-01-01',
+        'effective_to' => null,
+    ]);
+
+    foreach ($products as $product) {
+        $product->teams()->attach($position->team_id);
+    }
+
+    return $position;
+}
 
 /**
  * Worked examples from docs/playbook.md §3.4.
@@ -32,6 +56,7 @@ test('maternity leave produces effective annual 900 and YTD at end-of-Aug is 400
 
     $product = Product::factory()->create();
     $rep = User::factory()->withRole('sales_rep')->create();
+    assignRepToTeamFor($rep, $product);
 
     $tier2 = TargetTier::factory()->create(['name' => 'Tier 2']);
     TargetTierLine::factory()->create([
@@ -104,6 +129,7 @@ test('mid-cycle tier change 1200 to 1500 effective Aug produces effective annual
 
     $product = Product::factory()->create();
     $rep = User::factory()->withRole('sales_rep')->create();
+    assignRepToTeamFor($rep, $product);
 
     $tier2 = TargetTier::factory()->create(['name' => 'Tier 2']);
     TargetTierLine::factory()->create([
@@ -179,6 +205,7 @@ test('an assignment starting mid-month covers that whole month\'s bucket', funct
 
     $product = Product::factory()->create();
     $rep = User::factory()->withRole('sales_rep')->create();
+    assignRepToTeamFor($rep, $product);
 
     $tier = TargetTier::factory()->create(['name' => 'Tier 2']);
     TargetTierLine::factory()->create([
@@ -206,4 +233,52 @@ test('an assignment starting mid-month covers that whole month\'s bucket', funct
         ->value('target_qty');
 
     expect((float) $febTarget)->toBe(100.0);
+});
+
+test('a tier line for a product outside the rep\'s team is never materialized', function (): void {
+    $cycle = Cycle::factory()->create([
+        'name' => '2025/2026',
+        'starts_on' => '2025-02-01',
+        'ends_on' => '2026-01-31',
+    ]);
+
+    $ownProduct = Product::factory()->create();
+    $foreignProduct = Product::factory()->create();
+    $rep = User::factory()->withRole('sales_rep')->create();
+
+    // Only $ownProduct is attached to the rep's team; $foreignProduct belongs to no team of theirs.
+    assignRepToTeamFor($rep, $ownProduct);
+
+    $tier = TargetTier::factory()->create(['name' => 'Tier 2']);
+    TargetTierLine::factory()->create([
+        'target_tier_id' => $tier->id,
+        'product_id' => $ownProduct->id,
+        'annual_volume' => 1200,
+    ]);
+    TargetTierLine::factory()->create([
+        'target_tier_id' => $tier->id,
+        'product_id' => $foreignProduct->id,
+        'annual_volume' => 1200,
+    ]);
+
+    TargetAssignment::factory()->create([
+        'cycle_id' => $cycle->id,
+        'user_id' => $rep->id,
+        'target_tier_id' => $tier->id,
+        'basis' => TargetBasis::Tier,
+        'effective_from' => '2025-02-01',
+        'effective_to' => null,
+        'reason' => AssignmentReason::Initial,
+    ]);
+
+    app(TargetMaterializer::class)->rebuild($rep, $cycle);
+
+    expect(RepMonthlyTarget::where('cycle_id', $cycle->id)
+        ->where('user_id', $rep->id)
+        ->where('product_id', $ownProduct->id)
+        ->exists())->toBeTrue()
+        ->and(RepMonthlyTarget::where('cycle_id', $cycle->id)
+            ->where('user_id', $rep->id)
+            ->where('product_id', $foreignProduct->id)
+            ->exists())->toBeFalse();
 });

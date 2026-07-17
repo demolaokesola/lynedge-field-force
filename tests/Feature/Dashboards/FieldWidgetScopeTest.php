@@ -1,11 +1,12 @@
 <?php
 
 use App\Enums\DepositStatus;
+use App\Filament\Field\Resources\Products\Widgets\ProductPerformanceOverviewWidget;
+use App\Filament\Field\Resources\Products\Widgets\ProductPerformanceTrendWidget;
 use App\Filament\Field\Widgets\CallSummaryWidget;
 use App\Filament\Field\Widgets\OutstandingDepositsWidget;
-use App\Filament\Field\Widgets\ProductPerformanceOverviewWidget;
-use App\Filament\Field\Widgets\ProductPerformanceTrendWidget;
 use App\Filament\Field\Widgets\RecentDistributionsWidget;
+use App\Filament\Field\Widgets\RepPerformanceOverviewWidget;
 use App\Filament\Field\Widgets\YtdAttainmentWidget;
 use App\Models\Call;
 use App\Models\Customer;
@@ -68,6 +69,73 @@ describe('YtdAttainmentWidget', function (): void {
         livewire(YtdAttainmentWidget::class)
             ->assertSee('My Product Alpha')
             ->assertDontSee('Other Product Beta');
+    });
+});
+
+describe('RepPerformanceOverviewWidget', function (): void {
+    it('totals target and actual across all of the rep\'s products, excluding other reps', function (): void {
+        $cycle = Cycle::factory()->create([
+            'is_current' => true,
+            'starts_on' => now()->startOfMonth(),
+            'ends_on' => now()->startOfMonth()->addYear()->subDay(),
+        ]);
+        $productA = Product::factory()->create();
+        $productB = Product::factory()->create();
+
+        RepMonthlyTarget::factory()->create([
+            'cycle_id' => $cycle->id,
+            'user_id' => $this->rep->id,
+            'product_id' => $productA->id,
+            'year_month' => now()->startOfMonth(),
+            'target_qty' => 40,
+        ]);
+        RepMonthlyTarget::factory()->create([
+            'cycle_id' => $cycle->id,
+            'user_id' => $this->rep->id,
+            'product_id' => $productB->id,
+            'year_month' => now()->startOfMonth(),
+            'target_qty' => 60,
+        ]);
+        RepMonthlyTarget::factory()->create([
+            'cycle_id' => $cycle->id,
+            'user_id' => $this->otherRep->id,
+            'product_id' => $productA->id,
+            'year_month' => now()->startOfMonth(),
+            'target_qty' => 999,
+        ]);
+
+        $myDistribution = Distribution::factory()->by($this->rep)->forPosition($this->position)->posted()
+            ->create(['invoice_date' => now()]);
+        DistributionLine::create([
+            'distribution_id' => $myDistribution->id,
+            'product_id' => $productA->id,
+            'quantity' => 10,
+            'unit_price' => 100,
+        ]);
+        DistributionLine::create([
+            'distribution_id' => $myDistribution->id,
+            'product_id' => $productB->id,
+            'quantity' => 40,
+            'unit_price' => 100,
+        ]);
+
+        $otherDistribution = Distribution::factory()->by($this->otherRep)->forPosition($this->position)->posted()
+            ->create(['invoice_date' => now()]);
+        DistributionLine::create([
+            'distribution_id' => $otherDistribution->id,
+            'product_id' => $productA->id,
+            'quantity' => 999,
+            'unit_price' => 100,
+        ]);
+
+        $this->actingAs($this->rep);
+
+        // Target 40+60=100, Actual 10+40=50 -> 50.0% attainment; the other rep's numbers must not leak in.
+        livewire(RepPerformanceOverviewWidget::class)
+            ->assertSee('100.00')
+            ->assertSee('50.00')
+            ->assertSee('50.0%')
+            ->assertDontSee('999.00');
     });
 });
 

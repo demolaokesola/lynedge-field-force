@@ -9,11 +9,16 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class CallSummaryWidget extends BaseWidget
 {
-    // protected ?string $heading = 'My Calls — This Month';
-
-    protected static ?int $sort = 2;
+    protected static ?int $sort = 3;
 
     protected ?string $pollingInterval = null;
+
+    public function getHeading(): ?string
+    {
+        return auth()->user()?->hasRole('supervisor')
+            ? 'Region Calls — This Month'
+            : 'My Calls — This Month';
+    }
 
     protected function getStats(): array
     {

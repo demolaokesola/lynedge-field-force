@@ -4,9 +4,13 @@ use App\Enums\DepositStatus;
 use App\Filament\Field\Resources\Products\Widgets\ProductPerformanceOverviewWidget;
 use App\Filament\Field\Resources\Products\Widgets\ProductPerformanceTrendWidget;
 use App\Filament\Field\Widgets\CallSummaryWidget;
+use App\Filament\Field\Widgets\NoActivePositionNoticeWidget;
+use App\Filament\Field\Widgets\NoCurrentCycleNoticeWidget;
 use App\Filament\Field\Widgets\OutstandingDepositsWidget;
 use App\Filament\Field\Widgets\RecentDistributionsWidget;
 use App\Filament\Field\Widgets\RepPerformanceOverviewWidget;
+use App\Filament\Field\Widgets\StaleCustomersWidget;
+use App\Filament\Field\Widgets\SupervisorScopeNoticeWidget;
 use App\Filament\Field\Widgets\YtdAttainmentWidget;
 use App\Models\Call;
 use App\Models\Customer;
@@ -293,5 +297,147 @@ describe('ProductPerformanceTrendWidget', function (): void {
             ->and($data['datasets'][0]['data'][$currentMonthIndex])->toBe(40.0)
             ->and($data['datasets'][1]['label'])->toBe('Actual')
             ->and($data['datasets'][1]['data'][$currentMonthIndex])->toBe(20.0);
+    });
+});
+
+describe('NoActivePositionNoticeWidget', function (): void {
+    it('is visible when the rep has no active position', function (): void {
+        $unassignedRep = User::factory()->withRole('sales_rep')->create();
+
+        $this->actingAs($unassignedRep);
+
+        expect(NoActivePositionNoticeWidget::canView())->toBeTrue();
+    });
+
+    it('is hidden once the rep holds an active position', function (): void {
+        $this->actingAs($this->rep);
+
+        expect(NoActivePositionNoticeWidget::canView())->toBeFalse();
+    });
+});
+
+describe('NoCurrentCycleNoticeWidget', function (): void {
+    it('is visible when there is no current cycle', function (): void {
+        expect(NoCurrentCycleNoticeWidget::canView())->toBeTrue();
+    });
+
+    it('is hidden once a cycle is marked current', function (): void {
+        Cycle::factory()->create(['is_current' => true]);
+
+        expect(NoCurrentCycleNoticeWidget::canView())->toBeFalse();
+    });
+});
+
+describe('SupervisorScopeNoticeWidget', function (): void {
+    it('is hidden for a sales_rep', function (): void {
+        $this->actingAs($this->rep);
+
+        expect(SupervisorScopeNoticeWidget::canView())->toBeFalse();
+    });
+
+    it('is visible for a supervisor', function (): void {
+        $supervisor = User::factory()->withRole('supervisor')->create();
+
+        $this->actingAs($supervisor);
+
+        expect(SupervisorScopeNoticeWidget::canView())->toBeTrue();
+    });
+});
+
+describe('OutstandingDepositsWidget thresholds', function (): void {
+    it('escalates to danger once thresholds configured in field_dashboard are crossed', function (): void {
+        config()->set('field_dashboard.deposit_alerts.unreconciled_count', 1);
+        config()->set('field_dashboard.deposit_alerts.outstanding_value', 10000);
+
+        $customer = Customer::factory()->create(['territory_id' => $this->territory->id]);
+
+        Deposit::factory()->forCustomer($customer)->create([
+            'user_id' => $this->rep->id,
+            'status' => DepositStatus::Unreconciled,
+            'amount' => 60000,
+        ]);
+        Deposit::factory()->forCustomer($customer)->create([
+            'user_id' => $this->rep->id,
+            'status' => DepositStatus::Unreconciled,
+            'amount' => 5000,
+        ]);
+
+        $this->actingAs($this->rep);
+
+        // 2 unreconciled (> threshold of 1) and 65,000 outstanding (> threshold of 10,000) -> both flagged.
+        livewire(OutstandingDepositsWidget::class)
+            ->assertSee('Above alert threshold — needs attention');
+    });
+
+    it('stays at the default presentation below configured thresholds', function (): void {
+        $customer = Customer::factory()->create(['territory_id' => $this->territory->id]);
+
+        Deposit::factory()->forCustomer($customer)->create([
+            'user_id' => $this->rep->id,
+            'status' => DepositStatus::Unreconciled,
+            'amount' => 5000,
+        ]);
+
+        $this->actingAs($this->rep);
+
+        livewire(OutstandingDepositsWidget::class)
+            ->assertSee('Sum of unreconciled deposits')
+            ->assertDontSee('Above alert threshold — needs attention');
+    });
+});
+
+describe('StaleCustomersWidget', function (): void {
+    it('lists a customer whose last activity is older than the configured threshold', function (): void {
+        config()->set('field_dashboard.stale_customer_days', 30);
+
+        $staleCustomer = Customer::factory()->create([
+            'territory_id' => $this->territory->id,
+            'name' => 'Stale Pharmacy Alpha',
+        ]);
+        Distribution::factory()->by($this->rep)->forPosition($this->position)->create([
+            'customer_id' => $staleCustomer->id,
+            'invoice_date' => now()->subDays(45),
+        ]);
+
+        $freshCustomer = Customer::factory()->create([
+            'territory_id' => $this->territory->id,
+            'name' => 'Fresh Pharmacy Beta',
+        ]);
+        Distribution::factory()->by($this->rep)->forPosition($this->position)->create([
+            'customer_id' => $freshCustomer->id,
+            'invoice_date' => now()->subDays(2),
+        ]);
+
+        $this->actingAs($this->rep);
+
+        livewire(StaleCustomersWidget::class)
+            ->assertSee('Stale Pharmacy Alpha')
+            ->assertDontSee('Fresh Pharmacy Beta');
+    });
+
+    it('lists a customer with no distribution or deposit activity at all', function (): void {
+        $neverActiveCustomer = Customer::factory()->create([
+            'territory_id' => $this->territory->id,
+            'name' => 'Never Active Pharmacy',
+        ]);
+
+        $this->actingAs($this->rep);
+
+        livewire(StaleCustomersWidget::class)
+            ->assertSee('Never Active Pharmacy')
+            ->assertSee('Never');
+    });
+
+    it('does not include a customer outside the rep\'s own territory', function (): void {
+        $otherTerritory = Territory::factory()->for($this->region)->create();
+        $outsideCustomer = Customer::factory()->create([
+            'territory_id' => $otherTerritory->id,
+            'name' => 'Outside Pharmacy',
+        ]);
+
+        $this->actingAs($this->rep);
+
+        livewire(StaleCustomersWidget::class)
+            ->assertDontSee('Outside Pharmacy');
     });
 });

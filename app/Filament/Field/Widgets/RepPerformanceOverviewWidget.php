@@ -13,6 +13,11 @@ class RepPerformanceOverviewWidget extends BaseWidget
 
     protected ?string $pollingInterval = null;
 
+    public function getHeading(): ?string
+    {
+        return 'My Target Attainment (Cycle to Date)';
+    }
+
     protected function getStats(): array
     {
         $user = auth()->user();

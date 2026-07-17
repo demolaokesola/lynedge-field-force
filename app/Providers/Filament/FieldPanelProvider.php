@@ -3,8 +3,6 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Field\Pages\Dashboard;
-use App\Filament\Field\Widgets\CallSummaryWidget;
-use App\Filament\Field\Widgets\OutstandingDepositsWidget;
 use App\Filament\Shared\Resources\Calls\CallResource;
 use App\Filament\Shared\Resources\Deposits\DepositResource;
 use App\Filament\Shared\Resources\Distributions\DistributionResource;
@@ -52,10 +50,6 @@ class FieldPanelProvider extends PanelProvider
                 Dashboard::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Field/Widgets'), for: 'App\Filament\Field\Widgets')
-            ->widgets([
-                // CallSummaryWidget::class,
-                // OutstandingDepositsWidget::class,
-            ])
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

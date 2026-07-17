@@ -9,9 +9,7 @@ use Filament\Widgets\TableWidget as BaseWidget;
 
 class RecentDistributionsWidget extends BaseWidget
 {
-    protected static ?string $heading = 'Recent Distributions';
-
-    protected static ?int $sort = 3;
+    protected static ?int $sort = 4;
 
     protected ?string $pollingInterval = null;
 
@@ -20,8 +18,12 @@ class RecentDistributionsWidget extends BaseWidget
     public function table(Table $table): Table
     {
         $user = auth()->user();
+        $heading = $user?->hasRole('supervisor')
+            ? 'Region Recent Distributions'
+            : 'My Recent Distributions';
 
         return $table
+            ->heading($heading)
             ->query(Distribution::visibleTo($user)->latest('invoice_date'))
             ->columns([
                 TextColumn::make('invoice_number')

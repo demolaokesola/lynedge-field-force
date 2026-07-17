@@ -9,11 +9,16 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class OutstandingDepositsWidget extends BaseWidget
 {
-    // protected ?string $heading = 'Outstanding Deposits';
-
-    protected static ?int $sort = 4;
+    protected static ?int $sort = 5;
 
     protected ?string $pollingInterval = null;
+
+    public function getHeading(): ?string
+    {
+        return auth()->user()?->hasRole('supervisor')
+            ? 'Region Outstanding Deposits'
+            : 'My Outstanding Deposits';
+    }
 
     protected function getStats(): array
     {
@@ -32,19 +37,27 @@ class OutstandingDepositsWidget extends BaseWidget
             ->where('status', DepositStatus::Disputed->value)
             ->count();
 
+        $unreconciledThreshold = config('field_dashboard.deposit_alerts.unreconciled_count');
+        $disputedThreshold = config('field_dashboard.deposit_alerts.disputed_count');
+        $valueThreshold = config('field_dashboard.deposit_alerts.outstanding_value');
+
         return [
             Stat::make('Unreconciled', $count)
                 ->description('Pending + partial')
                 ->descriptionIcon('heroicon-m-clock')
-                ->color($count > 0 ? 'warning' : 'success'),
+                ->color(match (true) {
+                    $count === 0 => 'success',
+                    $count > $unreconciledThreshold => 'danger',
+                    default => 'warning',
+                }),
             Stat::make('Outstanding Value (₦)', number_format((float) $total, 2))
-                ->description('Sum of unreconciled deposits')
+                ->description($total > $valueThreshold ? 'Above alert threshold — needs attention' : 'Sum of unreconciled deposits')
                 ->descriptionIcon('heroicon-m-banknotes')
-                ->color('info'),
+                ->color($total > $valueThreshold ? 'danger' : 'info'),
             Stat::make('Disputed', $disputed)
                 ->description('Flagged for review')
                 ->descriptionIcon('heroicon-m-exclamation-triangle')
-                ->color($disputed > 0 ? 'danger' : 'success'),
+                ->color($disputed >= $disputedThreshold ? 'danger' : 'success'),
         ];
     }
 }

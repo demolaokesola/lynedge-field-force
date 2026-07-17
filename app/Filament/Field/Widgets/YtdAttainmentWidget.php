@@ -14,8 +14,6 @@ use Illuminate\Support\Carbon;
 
 class YtdAttainmentWidget extends BaseWidget
 {
-    protected static ?string $heading = 'YTD Attainment (Current Cycle)';
-
     protected static ?int $sort = 1;
 
     protected ?string $pollingInterval = null;
@@ -29,6 +27,7 @@ class YtdAttainmentWidget extends BaseWidget
         $asOf = Carbon::now()->startOfMonth();
 
         return $table
+            ->heading('My Target Attainment — By Product')
             ->query($this->buildQuery($user, $cycle, $asOf))
             ->columns([
                 TextColumn::make('product_name')

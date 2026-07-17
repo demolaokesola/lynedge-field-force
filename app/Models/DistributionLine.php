@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * One line on a Distribution invoice.
+ * unit_price is always taken from the product's current price — never trusted from a form.
  * line_amount = quantity * unit_price — computed in the saving observer; never trusted from a form.
  * total_amount on the parent Distribution is refreshed after each line save/delete.
  */
@@ -22,8 +23,12 @@ class DistributionLine extends Model
 
     protected static function booted(): void
     {
-        // Recompute line_amount before every INSERT or UPDATE — client values are ignored.
+        // Derive unit_price from the product and recompute line_amount before every
+        // INSERT or UPDATE — client-supplied unit_price is always ignored.
         static::saving(function (DistributionLine $line): void {
+            // Fetch fresh rather than via the product() relation, which may be stale
+            // if it was already loaded/cached on this instance earlier in the request.
+            $line->unit_price = Product::whereKey($line->product_id)->value('unit_price');
             $line->line_amount = bcmul((string) $line->quantity, (string) $line->unit_price, 2);
         });
 

@@ -20,8 +20,9 @@ class DatabaseSeeder extends Seeder
             DemandCreatorTypeSeeder::class,
             RegionSeeder::class,
             TerritorySeeder::class,
-            MasterDataSeeder::class,
             PositionSeeder::class,
+            // MasterDataSeeder::class,
+
         ]);
     }
 }

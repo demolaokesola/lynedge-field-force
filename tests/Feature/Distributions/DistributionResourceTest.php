@@ -62,9 +62,9 @@ test('user_id is forced and territory_id and team_id are derived server-side', f
         ->and($dist->status)->toBe(DistributionStatus::Draft);
 });
 
-test('line_amount and total_amount are always recomputed server-side regardless of client input', function (): void {
-    // The form has no line_amount field, but we pass a deliberately wrong quantity/unit_price combo.
-    // The server must recompute: 3 * 400 = 1200, not whatever the client might send.
+test('unit_price, line_amount, and total_amount are always recomputed server-side regardless of client input', function (): void {
+    // The client submits a deliberately wrong unit_price (400 vs. the product's real 1000).
+    // The server must ignore it and use the product's price: 3 * 1000 = 3000, not 3 * 400.
     livewire(CreateDistribution::class)
         ->fillForm([
             'position_id' => $this->position->id,
@@ -81,12 +81,14 @@ test('line_amount and total_amount are always recomputed server-side regardless 
     $dist = Distribution::sole();
     $line = $dist->lines->first();
 
-    expect((float) $line->line_amount->amount)->toBe(1200.0)
-        ->and((float) $dist->total_amount->amount)->toBe(1200.0);
+    expect((float) $line->unit_price->amount)->toBe(1000.0)
+        ->and((float) $line->line_amount->amount)->toBe(3000.0)
+        ->and((float) $dist->total_amount->amount)->toBe(3000.0);
 });
 
 test('total_amount is the sum of all line_amounts', function (): void {
-    $productB = Product::factory()->create();
+    // $this->product's real price is 1000.00.
+    $productB = Product::factory()->create(['unit_price' => '250.00']);
     $productB->teams()->attach($this->team->id);
 
     livewire(CreateDistribution::class)
@@ -96,8 +98,8 @@ test('total_amount is the sum of all line_amounts', function (): void {
             'invoice_number' => 'INV-TOTAL-002',
             'invoice_date' => today()->toDateString(),
             'lines' => [
-                ['product_id' => $this->product->id, 'quantity' => 2, 'unit_price' => '500.00'],  // 1000
-                ['product_id' => $productB->id,      'quantity' => 4, 'unit_price' => '250.00'],  // 1000
+                ['product_id' => $this->product->id, 'quantity' => 1],  // 1 * 1000.00 = 1000
+                ['product_id' => $productB->id,      'quantity' => 4],  // 4 * 250.00 = 1000
             ],
         ])
         ->call('create')
@@ -156,6 +158,20 @@ test('sales_rep and supervisor may create; management roles may not', function (
         $user = User::factory()->withRole($role)->create();
         expect($user->can('create', Distribution::class))->toBeFalse();
     }
+});
+
+test('the "new distribution" button on the list page links to the create page instead of opening the default modal', function (): void {
+    // Regression guard: the default header CreateAction is a bare modal that fills
+    // Distribution directly and drops user_id/territory_id/team_id/status, which are
+    // NOT NULL columns only ever set in CreateDistribution::handleRecordCreation().
+    // It must link to that dedicated page instead.
+    $createUrl = DistributionResource::getUrl('create');
+
+    $this->get(DistributionResource::getUrl('index'))
+        ->assertOk()
+        ->assertSee($createUrl, false);
+
+    $this->get($createUrl)->assertOk();
 });
 
 test('the Distributions resource is registered in field and management panels, not office', function (): void {

@@ -3,9 +3,13 @@
 namespace App\Filament\Shared\Resources\Distributions\Tables;
 
 use App\Enums\DistributionStatus;
+use App\Models\Distribution;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Notifications\Notification;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -42,6 +46,23 @@ class DistributionsTable
                     ->options(DistributionStatus::class),
             ])
             ->recordActions([
+                // The submit stage: posting freezes the record (DistributionPolicy::post/
+                // update/delete all require status===Draft), so this hides itself once posted.
+                Action::make('post')
+                    ->label('Post')
+                    ->icon(Heroicon::OutlinedCheckCircle)
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->authorize('post')
+                    ->action(function (Distribution $record): void {
+                        $record->status = DistributionStatus::Posted;
+                        $record->save();
+
+                        Notification::make()
+                            ->success()
+                            ->title('Distribution posted')
+                            ->send();
+                    }),
                 EditAction::make(),
             ])
             ->toolbarActions([

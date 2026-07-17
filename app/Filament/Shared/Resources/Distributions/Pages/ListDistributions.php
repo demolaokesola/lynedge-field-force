@@ -14,7 +14,11 @@ class ListDistributions extends ListRecords
     {
         return [
             // Hidden automatically when DistributionPolicy::create() denies (management roles).
-            CreateAction::make(),
+            // Navigate to the dedicated create page instead of opening the default modal —
+            // user_id/territory_id/team_id derivation and the product guard only happen there
+            // (see CreateDistribution::handleRecordCreation/mutateFormDataBeforeCreate).
+            CreateAction::make()
+                ->url(fn (): string => DistributionResource::getUrl('create')),
         ];
     }
 }

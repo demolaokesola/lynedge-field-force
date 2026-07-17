@@ -25,7 +25,7 @@ class DistributionLineFactory extends Factory
         $product->teams()->attach($distribution->team_id);
 
         $quantity = fake()->randomFloat(2, 1, 50);
-        $unitPrice = fake()->randomFloat(2, 100, 5000);
+        $unitPrice = $product->unit_price->amount;
 
         return [
             'distribution_id' => $distribution->id,
@@ -46,7 +46,7 @@ class DistributionLineFactory extends Factory
             ?? tap(Product::factory()->create(), fn (Product $p) => $p->teams()->attach($distribution->team_id));
 
         $quantity = fake()->randomFloat(2, 1, 50);
-        $unitPrice = fake()->randomFloat(2, 100, 5000);
+        $unitPrice = $product->unit_price->amount;
 
         return $this->state([
             'distribution_id' => $distribution->id,

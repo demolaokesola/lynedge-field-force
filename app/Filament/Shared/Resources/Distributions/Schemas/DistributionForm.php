@@ -12,6 +12,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -54,15 +55,17 @@ class DistributionForm
                             ->options(fn (Get $get): array => static::productOptions($get('../../position_id')))
                             ->required()
                             ->native(false)
-                            ->live(onBlur: true),
+                            ->live()
+                            ->afterStateUpdated(fn (Set $set, ?string $state) => $set('unit_price', static::unitPriceFor($state))),
                         TextInput::make('quantity')
                             ->numeric()
                             ->minValue(0.01)
                             ->required(),
                         TextInput::make('unit_price')
+                            ->label('Unit price')
                             ->numeric()
-                            ->minValue(0.01)
-                            ->required(),
+                            ->disabled()
+                            ->dehydrated(false),
                     ])
                     ->columns(3)
                     ->columnSpanFull()
@@ -134,6 +137,19 @@ class DistributionForm
             ->orderBy('name')
             ->pluck('name', 'id')
             ->all();
+    }
+
+    /**
+     * The current unit price for a product, for display only — the server always
+     * re-derives {@see DistributionLine::$unit_price} from the product on save.
+     */
+    public static function unitPriceFor(int|string|null $productId): ?string
+    {
+        if ($productId === null) {
+            return null;
+        }
+
+        return Product::find($productId)?->unit_price?->amount;
     }
 
     protected static function territoryIdFor(int|string|null $positionId): ?int

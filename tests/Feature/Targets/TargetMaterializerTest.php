@@ -169,3 +169,41 @@ test('mid-cycle tier change 1200 to 1500 effective Aug produces effective annual
 
     expect((float) $augTarget)->toBe(125.0);
 });
+
+test('an assignment starting mid-month covers that whole month\'s bucket', function (): void {
+    $cycle = Cycle::factory()->create([
+        'name' => '2025/2026',
+        'starts_on' => '2025-02-01',
+        'ends_on' => '2026-01-31',
+    ]);
+
+    $product = Product::factory()->create();
+    $rep = User::factory()->withRole('sales_rep')->create();
+
+    $tier = TargetTier::factory()->create(['name' => 'Tier 2']);
+    TargetTierLine::factory()->create([
+        'target_tier_id' => $tier->id,
+        'product_id' => $product->id,
+        'annual_volume' => 1200,
+    ]);
+
+    TargetAssignment::factory()->create([
+        'cycle_id' => $cycle->id,
+        'user_id' => $rep->id,
+        'target_tier_id' => $tier->id,
+        'basis' => TargetBasis::Tier,
+        'effective_from' => '2025-02-17',
+        'effective_to' => null,
+        'reason' => AssignmentReason::Initial,
+    ]);
+
+    app(TargetMaterializer::class)->rebuild($rep, $cycle);
+
+    $febTarget = RepMonthlyTarget::where('cycle_id', $cycle->id)
+        ->where('user_id', $rep->id)
+        ->where('product_id', $product->id)
+        ->where('year_month', '2025-02-01')
+        ->value('target_qty');
+
+    expect((float) $febTarget)->toBe(100.0);
+});

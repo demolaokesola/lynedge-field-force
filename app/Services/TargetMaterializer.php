@@ -81,8 +81,8 @@ class TargetMaterializer
     private function assignmentForMonth(Collection $assignments, Carbon $month): ?TargetAssignment
     {
         return $assignments->first(function (TargetAssignment $a) use ($month): bool {
-            return $a->effective_from->lte($month)
-                && ($a->effective_to === null || $a->effective_to->gte($month));
+            return $a->effective_from->copy()->startOfMonth()->lte($month)
+                && ($a->effective_to === null || $a->effective_to->copy()->startOfMonth()->gte($month));
         });
     }
 

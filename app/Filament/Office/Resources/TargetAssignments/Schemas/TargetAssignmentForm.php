@@ -44,7 +44,8 @@ class TargetAssignmentForm
                     ->label('Tier')
                     ->options(fn (): array => TargetTier::where('active', true)->orderBy('name')->pluck('name', 'id')->all())
                     ->searchable()
-                    ->visible(fn (Get $get): bool => $get('basis') === TargetBasis::Tier->value),
+                    ->required(fn (Get $get): bool => $get('basis') === TargetBasis::Tier)
+                    ->visible(fn (Get $get): bool => $get('basis') === TargetBasis::Tier),
 
                 Select::make('reason')
                     ->label('Reason')
@@ -67,7 +68,7 @@ class TargetAssignmentForm
                     ->relationship()
                     ->label('Custom annual volumes')
                     ->columnSpanFull()
-                    ->visible(fn (Get $get): bool => $get('basis') === TargetBasis::Custom->value)
+                    ->visible(fn (Get $get): bool => $get('basis') === TargetBasis::Custom)
                     ->schema([
                         Select::make('product_id')
                             ->label('Product')

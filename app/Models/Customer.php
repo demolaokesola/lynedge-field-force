@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * A buying customer, anchored to a single territory. created_by tracks which rep (if
@@ -34,6 +35,22 @@ class Customer extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * @return HasMany<Distribution, $this>
+     */
+    public function distributions(): HasMany
+    {
+        return $this->hasMany(Distribution::class);
+    }
+
+    /**
+     * @return HasMany<Deposit, $this>
+     */
+    public function deposits(): HasMany
+    {
+        return $this->hasMany(Deposit::class);
     }
 
     /**

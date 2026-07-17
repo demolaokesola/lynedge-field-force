@@ -6,7 +6,9 @@ use App\Filament\Field\Clusters\CustomerDataCluster;
 use App\Filament\Field\Resources\Customers\Pages\CreateCustomer;
 use App\Filament\Field\Resources\Customers\Pages\EditCustomer;
 use App\Filament\Field\Resources\Customers\Pages\ListCustomers;
+use App\Filament\Field\Resources\Customers\Pages\ViewCustomer;
 use App\Filament\Field\Resources\Customers\Schemas\CustomerForm;
+use App\Filament\Field\Resources\Customers\Schemas\CustomerInfolist;
 use App\Filament\Field\Resources\Customers\Tables\CustomersTable;
 use App\Models\Customer;
 use App\Policies\CustomerPolicy;
@@ -38,6 +40,11 @@ class CustomerResource extends Resource
         return CustomerForm::configure($schema);
     }
 
+    public static function infolist(Schema $schema): Schema
+    {
+        return CustomerInfolist::configure($schema);
+    }
+
     public static function table(Table $table): Table
     {
         return CustomersTable::configure($table);
@@ -64,6 +71,7 @@ class CustomerResource extends Resource
             'index' => ListCustomers::route('/'),
             'create' => CreateCustomer::route('/create'),
             'edit' => EditCustomer::route('/{record}/edit'),
+            'view' => ViewCustomer::route('/{record}'),
         ];
     }
 }

@@ -105,13 +105,11 @@ test('the "new customer" button on the list page links to the create page instea
     $this->get($createUrl)->assertOk();
 });
 
-test('sales_rep, supervisor and platform_admin may create customers but other roles may not', function (): void {
+test('sales_rep and platform_admin may create customers but other roles may not', function (): void {
     expect($this->rep->can('create', Customer::class))->toBeTrue();
 
-    foreach (['supervisor', 'platform_admin'] as $role) {
-        $user = User::factory()->withRole($role)->create();
-        expect($user->can('create', Customer::class))->toBeTrue();
-    }
+    $admin = User::factory()->withRole('platform_admin')->create();
+    expect($admin->can('create', Customer::class))->toBeTrue();
 
     foreach (['hq_lead', 'regional_head', 'accountant'] as $role) {
         $user = User::factory()->withRole($role)->create();

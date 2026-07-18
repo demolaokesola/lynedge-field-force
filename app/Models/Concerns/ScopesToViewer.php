@@ -4,6 +4,7 @@ namespace App\Models\Concerns;
 
 use App\Models\Territory;
 use App\Models\User;
+use App\Services\RepScope;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
@@ -11,13 +12,16 @@ use Illuminate\Database\Eloquent\Builder;
  * may READ — the read-side counterpart to write-side Policies, kept deliberately
  * separate from them (see .ai/project, "Two scopes").
  *
- * For models carrying both user_id and territory_id (Call, and later Distribution &
- * Deposit), so it keys off those two columns:
+ * For models carrying both user_id and territory_id (Call, Distribution, Deposit), so
+ * it keys off those two columns:
  *  - superuser|platform_admin|hq_lead|accountant -> all
  *  - regional_head -> territories of their region_id
- *  - supervisor    -> territories of their region (derived from their open position)
- *  - sales_rep     -> own activity only
+ *  - sales_rep     -> own activity, plus (if supervising any position) the current
+ *                      occupants' activity for the positions they supervise
  *  - anyone else / no viewer -> nothing
+ *
+ * Supervision is a derived fact (Position.supervisor_id), not a role — a plain rep
+ * simply has no subordinates, so this reduces to own-activity-only for them.
  */
 trait ScopesToViewer
 {
@@ -37,17 +41,14 @@ trait ScopesToViewer
             return $query;
         }
 
-        // Supervisor is checked before sales_rep: a user who is both keeps region-read.
         if ($viewer->hasRole('regional_head')) {
             return $query->whereIn('territory_id', $this->territoriesInRegion($viewer->region_id));
         }
 
-        if ($viewer->hasRole('supervisor')) {
-            return $query->whereIn('territory_id', $this->territoriesInRegion($viewer->currentRegionId()));
-        }
-
         if ($viewer->hasRole('sales_rep')) {
-            return $query->where('user_id', $viewer->id);
+            $userIds = app(RepScope::class)->subordinateUserIds($viewer)->push($viewer->id);
+
+            return $query->whereIn('user_id', $userIds);
         }
 
         return $query->whereRaw('1 = 0');

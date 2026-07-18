@@ -15,8 +15,8 @@ class OutstandingDepositsWidget extends BaseWidget
 
     public function getHeading(): ?string
     {
-        return auth()->user()?->hasRole('supervisor')
-            ? 'Region Outstanding Deposits'
+        return auth()->user()?->isSupervisor()
+            ? 'Supervised Outstanding Deposits'
             : 'My Outstanding Deposits';
     }
 

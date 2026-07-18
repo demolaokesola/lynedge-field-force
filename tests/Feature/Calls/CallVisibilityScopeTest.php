@@ -47,24 +47,30 @@ test('a regional_head sees every call in their region and none outside it', func
         ->and($visible)->not->toContain($outOfRegion->id);
 });
 
-test('a supervisor sees their region (derived from their open position), read of others included', function (): void {
-    $supervisor = User::factory()->withRole('supervisor')->create();
+test('a supervisor sees their own calls plus the current occupants of positions they supervise, not everyone in the territory', function (): void {
+    $supervisor = User::factory()->withRole('sales_rep')->create();
+    $ownCall = ($this->callIn)($this->terrA, $supervisor);
 
-    // Anchor the supervisor to region A via an open position there.
-    $position = Position::factory()->create(['territory_id' => $this->terrA->id]);
+    $supervisedPosition = Position::factory()->create([
+        'territory_id' => $this->terrA->id,
+        'supervisor_id' => $supervisor->id,
+    ]);
+    $occupant = User::factory()->withRole('sales_rep')->create();
     PositionAssignment::factory()->create([
-        'position_id' => $position->id,
-        'user_id' => $supervisor->id,
+        'position_id' => $supervisedPosition->id,
+        'user_id' => $occupant->id,
         'effective_to' => null,
     ]);
+    $subordinateCall = Call::factory()->by($occupant)->forPosition($supervisedPosition)->create();
 
-    $inRegion = ($this->callIn)($this->terrA); // logged by a different rep
-    $outOfRegion = ($this->callIn)($this->terrB);
+    // A different, unsupervised position in the same territory — must stay hidden.
+    $unsupervisedCall = ($this->callIn)($this->terrA);
 
     $visible = Call::visibleTo($supervisor)->pluck('id')->all();
 
-    expect($visible)->toContain($inRegion->id)
-        ->and($visible)->not->toContain($outOfRegion->id);
+    expect($visible)->toContain($ownCall->id)
+        ->and($visible)->toContain($subordinateCall->id)
+        ->and($visible)->not->toContain($unsupervisedCall->id);
 });
 
 test('national roles see every call', function (string $role): void {

@@ -20,7 +20,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * territory.team_policy === strict) and are deliberately NOT mass-assignable — never
  * let the client set them.
  */
-#[Fillable(['territory_id', 'team_id', 'status'])]
+#[Fillable(['territory_id', 'team_id', 'supervisor_id', 'status'])]
 class Position extends Model
 {
     /** @use HasFactory<PositionFactory> */
@@ -40,6 +40,17 @@ class Position extends Model
     public function team(): BelongsTo
     {
         return $this->belongsTo(Team::class);
+    }
+
+    /**
+     * The user who supervises this position (elevated read over its occupant's
+     * activity), independent of who currently occupies it.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function supervisor(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 
     /**
@@ -64,7 +75,7 @@ class Position extends Model
      * Restrict to the positions a viewer may see in the org tree.
      *
      * National roles see all; a regional_head sees positions in their region's
-     * territories; reps/supervisors are anchored by their Position and see none here.
+     * territories; sales_reps (supervising or not) are anchored by their Position and see none here.
      *
      * @param  Builder<static>  $query
      * @return Builder<static>

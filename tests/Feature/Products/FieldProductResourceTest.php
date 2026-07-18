@@ -67,7 +67,7 @@ test('a rep cannot view a product outside their team scope', function (): void {
         ->assertNotFound();
 });
 
-test('roles other than sales_rep/supervisor/platform_admin cannot access My Products', function (): void {
+test('roles other than sales_rep/platform_admin cannot access My Products', function (): void {
     $hqLead = User::factory()->withRole('hq_lead')->create();
 
     $this->actingAs($hqLead)

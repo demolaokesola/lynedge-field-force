@@ -27,7 +27,7 @@ class Region extends Model
      * Restrict to the regions a viewer may see in the org tree.
      *
      * National roles see all; a regional_head sees only their anchored region;
-     * reps/supervisors are anchored by their Position (Phase 2) and see none here.
+     * sales_reps (supervising or not) are anchored by their Position (Phase 2) and see none here.
      *
      * @param  Builder<static>  $query
      * @return Builder<static>

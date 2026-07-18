@@ -69,8 +69,11 @@ class DepositForm
 
         $query = Customer::query()->orderBy('name');
 
-        if ($user->hasAnyRole(['sales_rep', 'supervisor'])) {
-            $territoryIds = app(RepScope::class)->activePositions($user)->pluck('territory_id');
+        if ($user->hasRole('sales_rep')) {
+            $repScope = app(RepScope::class);
+            $territoryIds = $repScope->activePositions($user)->pluck('territory_id')
+                ->merge($repScope->positionsSupervisedBy($user)->pluck('territory_id'))
+                ->unique();
             $query->whereIn('territory_id', $territoryIds);
         }
 
@@ -84,7 +87,7 @@ class DepositForm
      */
     public static function repOptions(): array
     {
-        return User::role(['sales_rep', 'supervisor'])
+        return User::role('sales_rep')
             ->orderBy('name')
             ->pluck('name', 'id')
             ->all();

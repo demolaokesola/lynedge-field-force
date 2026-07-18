@@ -13,6 +13,9 @@ class RolesSeeder extends Seeder
      * Every application role. 'superuser' is Shield's super-admin (all abilities via
      * Gate::before); the rest gate panel entry in {@see User::canAccessPanel()}.
      *
+     * There is no 'supervisor' role — supervisory read access is derived from
+     * Position.supervisor_id (see {@see User::isSupervisor()}), not assigned.
+     *
      * @var list<string>
      */
     public const ROLES = [
@@ -21,7 +24,6 @@ class RolesSeeder extends Seeder
         'accountant',
         'hq_lead',
         'regional_head',
-        'supervisor',
         'sales_rep',
     ];
 

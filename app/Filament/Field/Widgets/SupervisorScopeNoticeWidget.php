@@ -13,13 +13,13 @@ class SupervisorScopeNoticeWidget extends BaseWidget
 
     public static function canView(): bool
     {
-        return auth()->user()?->hasRole('supervisor') ?? false;
+        return auth()->user()?->isSupervisor() ?? false;
     }
 
     protected function getStats(): array
     {
         return [
-            Stat::make('Viewing Region Data', 'The sections below show activity for everyone in your region, not just you.')
+            Stat::make('Viewing Supervised Data', 'The sections below show activity for the reps you supervise, not just you.')
                 ->color('info')
                 ->descriptionIcon('heroicon-m-information-circle'),
         ];

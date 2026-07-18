@@ -37,6 +37,10 @@ class PositionsTable
                     ->badge()
                     ->state(fn (Position $record): string => $record->openAssignment?->user?->name ?? 'VACANT')
                     ->color(fn (Position $record): string => $record->openAssignment ? 'success' : 'danger'),
+                TextColumn::make('supervisor.name')
+                    ->label('Supervisor')
+                    ->placeholder('—')
+                    ->sortable(),
             ])
             ->filters([
                 SelectFilter::make('territory')

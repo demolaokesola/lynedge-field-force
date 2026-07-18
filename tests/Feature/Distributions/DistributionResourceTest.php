@@ -148,11 +148,8 @@ test('a sales_rep sees only their own distributions in the list', function (): v
         ->assertCanNotSeeTableRecords([$foreign]);
 });
 
-test('sales_rep and supervisor may create; management roles may not', function (): void {
+test('sales_rep may create; management roles may not', function (): void {
     expect($this->rep->can('create', Distribution::class))->toBeTrue();
-
-    $supervisor = User::factory()->withRole('supervisor')->create();
-    expect($supervisor->can('create', Distribution::class))->toBeTrue();
 
     foreach (['hq_lead', 'regional_head', 'platform_admin', 'accountant'] as $role) {
         $user = User::factory()->withRole($role)->create();

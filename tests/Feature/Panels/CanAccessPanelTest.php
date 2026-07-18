@@ -14,7 +14,6 @@ function panelIds(): array
 dataset('role panel access', [
     // role => panel it may enter
     'sales_rep' => ['sales_rep', 'field'],
-    'supervisor' => ['supervisor', 'field'],
     'platform_admin' => ['platform_admin', 'office'],
     'accountant' => ['accountant', 'office'],
     'hq_lead' => ['hq_lead', 'management'],

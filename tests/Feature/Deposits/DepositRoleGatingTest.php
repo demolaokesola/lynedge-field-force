@@ -10,15 +10,12 @@ use App\Policies\DepositPolicy;
  * Policy-level gating for deposits and allocations.
  * Superuser bypass is handled by Shield's Gate::before and is not repeated here.
  */
-test('sales_rep and supervisor can create deposits', function (string $role): void {
-    $user = User::factory()->withRole($role)->create();
+test('sales_rep can create deposits', function (): void {
+    $user = User::factory()->withRole('sales_rep')->create();
     $policy = new DepositPolicy;
 
     expect($policy->create($user))->toBeTrue();
-})->with([
-    'sales_rep' => ['sales_rep'],
-    'supervisor' => ['supervisor'],
-]);
+});
 
 test('accountant and platform_admin can create deposits', function (string $role): void {
     $user = User::factory()->withRole($role)->create();
@@ -67,7 +64,6 @@ test('only accountant and platform_admin can create allocations', function (stri
     'accountant can' => ['accountant', true],
     'platform_admin can' => ['platform_admin', true],
     'sales_rep cannot' => ['sales_rep', false],
-    'supervisor cannot' => ['supervisor', false],
     'hq_lead cannot' => ['hq_lead', false],
     'regional_head cannot' => ['regional_head', false],
 ]);

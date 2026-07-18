@@ -8,6 +8,7 @@ use App\Models\Position;
 use App\Models\Region;
 use App\Models\Team;
 use App\Models\Territory;
+use App\Models\User;
 use Closure;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -92,6 +93,14 @@ class PositionForm
                     ->disabled()
                     ->dehydrated(false)
                     ->formatStateUsing(fn (Get $get): ?string => self::previewCode($get('territory_id'), $get('team_id'))),
+                Select::make('supervisor_id')
+                    ->label('Supervisor')
+                    ->options(fn (): Collection => User::whereHas('roles', fn ($q) => $q->where('name', 'sales_rep'))
+                        ->orderBy('name')
+                        ->pluck('name', 'id'))
+                    ->searchable()
+                    ->preload()
+                    ->helperText('Optional. Grants this rep elevated read access over this position\'s activity.'),
                 Select::make('status')
                     ->options(PositionStatus::class)
                     ->default(PositionStatus::Active)

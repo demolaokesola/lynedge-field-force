@@ -50,17 +50,21 @@ test('a sales_rep with no active position sees nothing', function (): void {
     expect(DemandCreator::visibleTo($rep)->count())->toBe(0);
 });
 
-test('a supervisor sees demand creators only in their own active position territory', function (): void {
-    $supervisor = User::factory()->withRole('supervisor')->create();
-    ($this->assignActivePosition)($supervisor, $this->terrA);
+test('a supervisor additionally sees demand creators in the territory of a position they supervise, even without holding it themselves', function (): void {
+    $supervisor = User::factory()->withRole('sales_rep')->create();
 
-    $inTerritory = DemandCreator::factory()->create(['territory_id' => $this->terrA->id]);
-    $outOfTerritory = DemandCreator::factory()->create(['territory_id' => $this->terrB->id]);
+    Position::factory()->create([
+        'territory_id' => $this->terrB->id,
+        'supervisor_id' => $supervisor->id,
+    ]);
+
+    $inSupervisedTerritory = DemandCreator::factory()->create(['territory_id' => $this->terrB->id]);
+    $elsewhere = DemandCreator::factory()->create(['territory_id' => $this->terrA->id]);
 
     $visible = DemandCreator::visibleTo($supervisor)->pluck('id')->all();
 
-    expect($visible)->toContain($inTerritory->id)
-        ->and($visible)->not->toContain($outOfTerritory->id);
+    expect($visible)->toContain($inSupervisedTerritory->id)
+        ->and($visible)->not->toContain($elsewhere->id);
 });
 
 test('a regional_head sees every demand creator in their region and none outside it', function (): void {

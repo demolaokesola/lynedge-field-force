@@ -12,7 +12,8 @@ use Illuminate\Database\Eloquent\Builder;
  * for READ (unlike {@see ScopesToViewer}, which keys sales_rep visibility off user_id):
  *  - superuser|platform_admin|hq_lead|accountant -> all
  *  - regional_head -> territories of their region_id
- *  - supervisor|sales_rep -> territories of their own active positions
+ *  - sales_rep -> territories of their own active positions, plus (if supervising any
+ *                  position) territories of the positions they supervise
  *  - anyone else / no viewer -> nothing
  *
  * Write-side ownership (who may edit a given row) is a separate concern, handled by the
@@ -42,8 +43,11 @@ trait ScopesToTerritory
                 ->select('id'));
         }
 
-        if ($viewer->hasAnyRole(['supervisor', 'sales_rep'])) {
-            $territoryIds = app(RepScope::class)->activePositions($viewer)->pluck('territory_id');
+        if ($viewer->hasRole('sales_rep')) {
+            $repScope = app(RepScope::class);
+            $territoryIds = $repScope->activePositions($viewer)->pluck('territory_id')
+                ->merge($repScope->positionsSupervisedBy($viewer)->pluck('territory_id'))
+                ->unique();
 
             return $query->whereIn('territory_id', $territoryIds);
         }

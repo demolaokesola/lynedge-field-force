@@ -6,26 +6,26 @@ use App\Models\Customer;
 use App\Models\User;
 
 /**
- * Master-data is admin-only for management/finance roles. sales_rep/supervisor may
- * additionally create, view (scoped to their territory — see Customer's
- * ScopesToTerritory), and edit rows they created, via the field panel. The superuser
- * role is granted everything automatically via Shield's Gate::before.
+ * Master-data is admin-only for management/finance roles. sales_rep may additionally
+ * create, view (scoped to their territory — see Customer's ScopesToTerritory), and
+ * edit rows they created, via the field panel. The superuser role is granted
+ * everything automatically via Shield's Gate::before.
  */
 class CustomerPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole(['platform_admin', 'sales_rep', 'supervisor']);
+        return $user->hasAnyRole(['platform_admin', 'sales_rep']);
     }
 
     public function view(User $user, Customer $customer): bool
     {
-        return $user->hasAnyRole(['platform_admin', 'sales_rep', 'supervisor']);
+        return $user->hasAnyRole(['platform_admin', 'sales_rep']);
     }
 
     public function create(User $user): bool
     {
-        return $user->hasAnyRole(['platform_admin', 'sales_rep', 'supervisor']);
+        return $user->hasAnyRole(['platform_admin', 'sales_rep']);
     }
 
     public function update(User $user, Customer $customer): bool
@@ -34,7 +34,7 @@ class CustomerPolicy
             return true;
         }
 
-        return $user->hasAnyRole(['sales_rep', 'supervisor']) && $customer->created_by === $user->id;
+        return $user->hasRole('sales_rep') && $customer->created_by === $user->id;
     }
 
     public function delete(User $user, Customer $customer): bool

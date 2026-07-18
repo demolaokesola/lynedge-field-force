@@ -85,3 +85,47 @@ test('the form accepts a matching team and territory pair', function (): void {
         'enforce_team_uniqueness' => true,
     ]);
 });
+
+test('the form accepts an optional supervisor and persists it', function (): void {
+    $territory = Territory::factory()->strict()->create();
+    $team = Team::factory()->strict()->create();
+    $supervisor = User::factory()->withRole('sales_rep')->create();
+
+    livewire(CreatePosition::class)
+        ->fillForm([
+            'region_id' => $territory->region_id,
+            'territory_id' => $territory->id,
+            'team_id' => $team->id,
+            'supervisor_id' => $supervisor->id,
+            'status' => PositionStatus::Active->value,
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $this->assertDatabaseHas('positions', [
+        'territory_id' => $territory->id,
+        'team_id' => $team->id,
+        'supervisor_id' => $supervisor->id,
+    ]);
+});
+
+test('the form leaves supervisor_id null when none is selected', function (): void {
+    $territory = Territory::factory()->strict()->create();
+    $team = Team::factory()->strict()->create();
+
+    livewire(CreatePosition::class)
+        ->fillForm([
+            'region_id' => $territory->region_id,
+            'territory_id' => $territory->id,
+            'team_id' => $team->id,
+            'status' => PositionStatus::Active->value,
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $this->assertDatabaseHas('positions', [
+        'territory_id' => $territory->id,
+        'team_id' => $team->id,
+        'supervisor_id' => null,
+    ]);
+});

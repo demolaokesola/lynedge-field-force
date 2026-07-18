@@ -48,23 +48,30 @@ test('a regional_head sees every distribution in their region and none outside i
         ->and($visible)->not->toContain($outOfRegion->id);
 });
 
-test('a supervisor sees their region (derived from their open position), read of others included', function (): void {
-    $supervisor = User::factory()->withRole('supervisor')->create();
+test('a supervisor sees their own distributions plus the current occupants of positions they supervise, not everyone in the territory', function (): void {
+    $supervisor = User::factory()->withRole('sales_rep')->create();
+    $ownDistribution = ($this->distributionIn)($this->terrA, $supervisor);
 
-    $position = Position::factory()->create(['territory_id' => $this->terrA->id]);
+    $supervisedPosition = Position::factory()->create([
+        'territory_id' => $this->terrA->id,
+        'supervisor_id' => $supervisor->id,
+    ]);
+    $occupant = User::factory()->withRole('sales_rep')->create();
     PositionAssignment::factory()->create([
-        'position_id' => $position->id,
-        'user_id' => $supervisor->id,
+        'position_id' => $supervisedPosition->id,
+        'user_id' => $occupant->id,
         'effective_to' => null,
     ]);
+    $subordinateDistribution = Distribution::factory()->by($occupant)->forPosition($supervisedPosition)->create();
 
-    $inRegion = ($this->distributionIn)($this->terrA);
-    $outOfRegion = ($this->distributionIn)($this->terrB);
+    // A different, unsupervised position in the same territory — must stay hidden.
+    $unsupervisedDistribution = ($this->distributionIn)($this->terrA);
 
     $visible = Distribution::visibleTo($supervisor)->pluck('id')->all();
 
-    expect($visible)->toContain($inRegion->id)
-        ->and($visible)->not->toContain($outOfRegion->id);
+    expect($visible)->toContain($ownDistribution->id)
+        ->and($visible)->toContain($subordinateDistribution->id)
+        ->and($visible)->not->toContain($unsupervisedDistribution->id);
 });
 
 test('national roles see every distribution', function (string $role): void {

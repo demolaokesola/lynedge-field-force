@@ -50,23 +50,30 @@ test('a regional_head sees every deposit in their region and none outside it', f
         ->and($visible)->not->toContain($outOfRegion->id);
 });
 
-test('a supervisor sees their derived region (from active position) and none outside it', function (): void {
-    $supervisor = User::factory()->withRole('supervisor')->create();
+test('a supervisor sees their own deposits plus the current occupants of positions they supervise, not everyone in the territory', function (): void {
+    $supervisor = User::factory()->withRole('sales_rep')->create();
+    $ownDeposit = ($this->depositIn)($this->terrA, $supervisor);
 
-    $position = Position::factory()->create(['territory_id' => $this->terrA->id]);
+    $supervisedPosition = Position::factory()->create([
+        'territory_id' => $this->terrA->id,
+        'supervisor_id' => $supervisor->id,
+    ]);
+    $occupant = User::factory()->withRole('sales_rep')->create();
     PositionAssignment::factory()->create([
-        'position_id' => $position->id,
-        'user_id' => $supervisor->id,
+        'position_id' => $supervisedPosition->id,
+        'user_id' => $occupant->id,
         'effective_to' => null,
     ]);
+    $subordinateDeposit = ($this->depositIn)($this->terrA, $occupant);
 
-    $inRegion = ($this->depositIn)($this->terrA);
-    $outOfRegion = ($this->depositIn)($this->terrB);
+    // A different, unsupervised rep in the same territory — must stay hidden.
+    $unsupervisedDeposit = ($this->depositIn)($this->terrA);
 
     $visible = Deposit::visibleTo($supervisor)->pluck('id')->all();
 
-    expect($visible)->toContain($inRegion->id)
-        ->and($visible)->not->toContain($outOfRegion->id);
+    expect($visible)->toContain($ownDeposit->id)
+        ->and($visible)->toContain($subordinateDeposit->id)
+        ->and($visible)->not->toContain($unsupervisedDeposit->id);
 });
 
 test('national roles see every deposit', function (string $role): void {

@@ -108,13 +108,11 @@ test('the "new demand creator" button on the list page links to the create page 
     $this->get($createUrl)->assertOk();
 });
 
-test('sales_rep, supervisor and platform_admin may create demand creators but other roles may not', function (): void {
+test('sales_rep and platform_admin may create demand creators but other roles may not', function (): void {
     expect($this->rep->can('create', DemandCreator::class))->toBeTrue();
 
-    foreach (['supervisor', 'platform_admin'] as $role) {
-        $user = User::factory()->withRole($role)->create();
-        expect($user->can('create', DemandCreator::class))->toBeTrue();
-    }
+    $admin = User::factory()->withRole('platform_admin')->create();
+    expect($admin->can('create', DemandCreator::class))->toBeTrue();
 
     foreach (['hq_lead', 'regional_head', 'accountant'] as $role) {
         $user = User::factory()->withRole($role)->create();

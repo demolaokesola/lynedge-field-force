@@ -31,7 +31,7 @@ class DistributionPolicy
 
     public function create(User $user): bool
     {
-        return $user->hasAnyRole(['sales_rep', 'supervisor']);
+        return $user->hasRole('sales_rep');
     }
 
     public function update(User $user, Distribution $distribution): bool
@@ -51,7 +51,7 @@ class DistributionPolicy
 
     private function ownsDraftDistribution(User $user, Distribution $distribution): bool
     {
-        return $user->hasAnyRole(['sales_rep', 'supervisor'])
+        return $user->hasRole('sales_rep')
             && $distribution->user_id === $user->id
             && $distribution->status === DistributionStatus::Draft;
     }

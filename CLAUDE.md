@@ -28,11 +28,14 @@ Region -> Territory -> Position(team) org tree, with target attainment.
 
 ## Roles
 
-superuser, platform_admin, hq_lead, regional_head, sales_rep, supervisor, accountant.
+superuser, platform_admin, hq_lead, regional_head, sales_rep, accountant.
 - A rep's org anchor is their POSITION (-> territory -> region), not an explicit
   region_id. users.region_id is set ONLY for regional_head (and optionally accountant).
-- supervisor = a sales_rep + region-read. They still hold a position; their region is
-  derived from that position.
+- There is NO "supervisor" role. Supervisory read access is DERIVED: a sales_rep
+  becomes a supervisor of whichever positions name them as Position.supervisor_id
+  (set by a platform_admin in the Office panel), independent of who currently occupies
+  those positions. Check `User::isSupervisor()` / `RepScope::positionsSupervisedBy()`,
+  never `hasRole('supervisor')` — that role does not exist.
 
 ## Two scopes — keep them separate
 
@@ -44,9 +47,10 @@ These models have user_id and territory_id.
 - superuser | platform_admin | hq_lead -> all
 - accountant -> all (deposits; adjustable to regional later)
 - regional_head -> whereIn('territory_id', territories of their region_id)
-- supervisor -> whereIn('territory_id', territories of their region) [region derived
-  from their open position] -- this is READ visibility; WRITE stays own via policy
-- sales_rep -> where('user_id', $user->id)  (own activity only)
+- sales_rep -> whereIn('user_id', subordinateUserIds ∪ own id), where subordinateUserIds
+  is the current occupants of positions they supervise (RepScope::subordinateUserIds) —
+  empty for a plain rep, so this reduces to own activity only. This is READ visibility;
+  WRITE stays own via policy regardless of supervision.
 
 ### B) Org scope: scopeVisibleOrgTo($q, $user) on Region, Territory
 
@@ -54,7 +58,7 @@ These models have NO user_id; Territory has region_id, Region is keyed by id.
 - superuser | platform_admin | hq_lead | accountant -> all
 - regional_head -> Territory: where('region_id', $user->region_id);
                    Region:    whereKey($user->region_id)
-- sales_rep | supervisor -> whereRaw('1 = 0')  (empty) FOR NOW.
+- sales_rep -> whereRaw('1 = 0')  (empty) FOR NOW.
   Their org anchor is the Position (added in Phase 2). When positions exist, replace
   this branch with: regions of the user's active positions' territories.
 - NEVER use "null region_id means see all" — a rep has a null region_id and would
@@ -72,7 +76,8 @@ data (management dashboards, field selects), not for the admin resources.
 Three Filament panels. A panel is navigation/UX only — NEVER treat it as
 authorization. Row/action access is Policies + the scopes above, independent of panel.
 Resource classes may be shared across panels.
-- field      -> sales_rep, supervisor      (mobile-first: own activity + my attainment)
+- field      -> sales_rep      (mobile-first: own activity + my attainment; supervisors
+               get elevated read within this same panel, derived not role-gated)
 - office     -> platform_admin, accountant  (config/master-data/users; deposits & recon)
 - management -> hq_lead, regional_head      (oversight: dashboards, scoped read-only)
 - superuser  -> all panels (break-glass)

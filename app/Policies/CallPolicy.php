@@ -29,7 +29,7 @@ class CallPolicy
 
     public function create(User $user): bool
     {
-        return $user->hasAnyRole(['sales_rep', 'supervisor']);
+        return $user->hasRole('sales_rep');
     }
 
     public function update(User $user, Call $call): bool
@@ -44,7 +44,7 @@ class CallPolicy
 
     private function ownsCall(User $user, Call $call): bool
     {
-        return $user->hasAnyRole(['sales_rep', 'supervisor'])
+        return $user->hasRole('sales_rep')
             && $call->user_id === $user->id;
     }
 }

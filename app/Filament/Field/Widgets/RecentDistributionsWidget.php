@@ -18,8 +18,8 @@ class RecentDistributionsWidget extends BaseWidget
     public function table(Table $table): Table
     {
         $user = auth()->user();
-        $heading = $user?->hasRole('supervisor')
-            ? 'Region Recent Distributions'
+        $heading = $user?->isSupervisor()
+            ? 'Supervised Recent Distributions'
             : 'My Recent Distributions';
 
         return $table

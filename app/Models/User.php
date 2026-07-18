@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\PositionStatus;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
@@ -31,7 +32,7 @@ class User extends Authenticatable implements FilamentUser
      * @var array<string, list<string>>
      */
     private const PANEL_ROLES = [
-        'field' => ['sales_rep', 'supervisor'],
+        'field' => ['sales_rep'],
         'office' => ['platform_admin', 'accountant'],
         'management' => ['hq_lead', 'regional_head'],
     ];
@@ -78,17 +79,23 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
-     * The region this user reads against: the explicit region_id when set (regional_head,
-     * optionally accountant), otherwise derived from the open position's territory. Null
-     * when neither is present — callers must treat that as "no region", never "all".
+     * Positions this user supervises (elevated read over their occupants' activity),
+     * independent of any position this user personally occupies. Supervision is a
+     * derived fact, not a role — a user supervises simply by being named here.
+     *
+     * @return HasMany<Position, $this>
      */
-    public function currentRegionId(): ?int
+    public function supervisedPositions(): HasMany
     {
-        if ($this->region_id !== null) {
-            return $this->region_id;
-        }
+        return $this->hasMany(Position::class, 'supervisor_id');
+    }
 
-        return $this->activePositionAssignment?->position?->territory?->region_id;
+    /**
+     * Whether this user currently supervises at least one active position.
+     */
+    public function isSupervisor(): bool
+    {
+        return $this->supervisedPositions()->where('status', PositionStatus::Active)->exists();
     }
 
     /**

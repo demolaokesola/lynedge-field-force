@@ -42,7 +42,7 @@ class CallResource extends Resource
     /**
      * The single choke-point for transaction visibility (Scope A). Every list, edit and
      * record lookup flows through here, so a viewer can only ever reach rows the scope
-     * permits — own activity for a rep, region for supervisor/regional_head, all for HQ.
+     * permits — own (+ supervised) activity for a rep, region for regional_head, all for HQ.
      *
      * @return Builder<Call>
      */

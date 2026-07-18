@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Position;
 use App\Models\Region;
 use App\Models\Territory;
 use App\Models\User;
@@ -35,12 +36,20 @@ test('a regional_head sees only their region and its territories', function (): 
         ->toEqual([$this->regionA->id]);
 });
 
-test('reps and supervisors see no regions or territories', function (string $role): void {
-    $user = User::factory()->withRole($role)->create();
+test('reps see no regions or territories', function (): void {
+    $user = User::factory()->withRole('sales_rep')->create();
 
     expect(Region::visibleOrgTo($user)->count())->toBe(0)
         ->and(Territory::visibleOrgTo($user)->count())->toBe(0);
-})->with([
-    'sales_rep' => ['sales_rep'],
-    'supervisor' => ['supervisor'],
-]);
+});
+
+test('a rep who supervises a position still sees no regions or territories', function (): void {
+    $supervisor = User::factory()->withRole('sales_rep')->create();
+    Position::factory()->create([
+        'territory_id' => Territory::factory()->for($this->regionA),
+        'supervisor_id' => $supervisor->id,
+    ]);
+
+    expect(Region::visibleOrgTo($supervisor)->count())->toBe(0)
+        ->and(Territory::visibleOrgTo($supervisor)->count())->toBe(0);
+});

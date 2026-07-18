@@ -25,7 +25,7 @@ class DepositPolicy
 
     public function create(User $user): bool
     {
-        return $user->hasAnyRole(['sales_rep', 'supervisor', 'accountant', 'platform_admin']);
+        return $user->hasAnyRole(['sales_rep', 'accountant', 'platform_admin']);
     }
 
     public function update(User $user, Deposit $deposit): bool

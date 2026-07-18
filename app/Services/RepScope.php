@@ -4,11 +4,13 @@ namespace App\Services;
 
 use App\Enums\PositionStatus;
 use App\Models\Position;
+use App\Models\PositionAssignment;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection as SupportCollection;
 
 /**
  * Resolves the positions a rep may act under, and the products they may distribute
@@ -94,5 +96,39 @@ class RepScope
                 $position->id => "{$position->code} — {$position->territory->name}",
             ])
             ->all();
+    }
+
+    /**
+     * The active positions a user supervises (see {@see User::supervisedPositions()}).
+     * Supervision is a derived fact, not a role — empty for a user who supervises
+     * nothing.
+     *
+     * @return Collection<int, Position>
+     */
+    public function positionsSupervisedBy(User $user): Collection
+    {
+        return $user->supervisedPositions()->where('status', PositionStatus::Active)->get();
+    }
+
+    /**
+     * The current occupant user ids of the positions a user supervises, on a given
+     * date. Empty for a user who doesn't supervise anything — callers don't need to
+     * branch on role.
+     *
+     * @return SupportCollection<int, int>
+     */
+    public function subordinateUserIds(User $user, ?Carbon $on = null): SupportCollection
+    {
+        $on ??= Carbon::now();
+        $positionIds = $this->positionsSupervisedBy($user)->pluck('id');
+
+        return PositionAssignment::query()
+            ->whereIn('position_id', $positionIds)
+            ->whereDate('effective_from', '<=', $on)
+            ->where(fn (Builder $q): Builder => $q
+                ->whereNull('effective_to')
+                ->orWhereDate('effective_to', '>=', $on))
+            ->pluck('user_id')
+            ->unique();
     }
 }

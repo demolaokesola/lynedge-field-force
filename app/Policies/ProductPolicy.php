@@ -6,8 +6,8 @@ use App\Models\Product;
 use App\Models\User;
 
 /**
- * Master-data is admin-only for write access. sales_rep/supervisor may additionally
- * view products (read-only "My Products" in the field panel, scoped to their team via
+ * Master-data is admin-only for write access. sales_rep may additionally view
+ * products (read-only "My Products" in the field panel, scoped to their team via
  * RepScope::productsForUser). The superuser role is granted everything automatically
  * via Shield's Gate::before.
  */
@@ -15,12 +15,12 @@ class ProductPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole(['platform_admin', 'sales_rep', 'supervisor']);
+        return $user->hasAnyRole(['platform_admin', 'sales_rep']);
     }
 
     public function view(User $user, Product $product): bool
     {
-        return $user->hasAnyRole(['platform_admin', 'sales_rep', 'supervisor']);
+        return $user->hasAnyRole(['platform_admin', 'sales_rep']);
     }
 
     public function create(User $user): bool

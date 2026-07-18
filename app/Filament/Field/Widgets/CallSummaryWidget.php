@@ -15,8 +15,8 @@ class CallSummaryWidget extends BaseWidget
 
     public function getHeading(): ?string
     {
-        return auth()->user()?->hasRole('supervisor')
-            ? 'Region Calls — This Month'
+        return auth()->user()?->isSupervisor()
+            ? 'Supervised Calls — This Month'
             : 'My Calls — This Month';
     }
 

@@ -335,8 +335,12 @@ describe('SupervisorScopeNoticeWidget', function (): void {
         expect(SupervisorScopeNoticeWidget::canView())->toBeFalse();
     });
 
-    it('is visible for a supervisor', function (): void {
-        $supervisor = User::factory()->withRole('supervisor')->create();
+    it('is visible for a rep who supervises a position', function (): void {
+        $supervisor = User::factory()->withRole('sales_rep')->create();
+        Position::factory()->create([
+            'territory_id' => $this->territory->id,
+            'supervisor_id' => $supervisor->id,
+        ]);
 
         $this->actingAs($supervisor);
 

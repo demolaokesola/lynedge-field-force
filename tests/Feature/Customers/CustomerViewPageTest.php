@@ -113,15 +113,17 @@ describe('CustomerReconciliationWidget', function (): void {
 
 describe('CustomerActivityWidget', function (): void {
     it('shows the most recent distribution and deposit dates for this customer', function (): void {
+        // invoice_date/deposit_date are date-only business dates and can be backdated;
+        // the "ago" display must reflect created_at (when the record was actually logged),
+        // not midnight of the business date.
         $distribution = Distribution::factory()->by($this->rep)->forPosition($this->position)
             ->create(['customer_id' => $this->customer->id, 'invoice_date' => now()->subDays(10)]);
         $deposit = Deposit::factory()->forCustomer($this->customer)->by($this->rep)
             ->create(['deposit_date' => now()->subDays(3)]);
 
-        // The widget renders relative ("ago") times, not raw dates.
         livewire(CustomerActivityWidget::class, ['record' => $this->customer])
-            ->assertSee($distribution->invoice_date->ago())
-            ->assertSee($deposit->deposit_date->ago());
+            ->assertSee($distribution->created_at->ago())
+            ->assertSee($deposit->created_at->ago());
     });
 
     it('falls back to placeholders when the customer has no activity', function (): void {
@@ -153,8 +155,8 @@ describe('CustomerTopProductsWidget', function (): void {
 
         livewire(CustomerTopProductsWidget::class, ['record' => $this->customer])
             ->assertSee('Amoxicillin 500mg')
-            ->assertSee('15.00')
-            ->assertDontSee('999.00');
+            ->assertSee('15')
+            ->assertDontSee('999');
     });
 });
 

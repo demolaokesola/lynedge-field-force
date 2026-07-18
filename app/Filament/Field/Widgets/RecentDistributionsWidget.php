@@ -3,6 +3,7 @@
 namespace App\Filament\Field\Widgets;
 
 use App\Models\Distribution;
+use App\Support\Money;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
@@ -36,8 +37,12 @@ class RecentDistributionsWidget extends BaseWidget
                     ->date()
                     ->sortable(),
                 TextColumn::make('total_amount')
-                    ->label('Total (₦)')
-                    ->money('NGN')
+                    ->label('Total')
+                    ->formatStateUsing(fn (mixed $state): ?string => match (true) {
+                        $state === null => null,
+                        $state instanceof Money => $state->format(),
+                        default => Money::of($state)->format(),
+                    })
                     ->sortable(),
                 TextColumn::make('status')
                     ->badge(),

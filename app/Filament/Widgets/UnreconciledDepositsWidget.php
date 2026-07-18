@@ -5,6 +5,7 @@ namespace App\Filament\Widgets;
 use App\Enums\DepositStatus;
 use App\Filament\Exports\UnreconciledDepositsExporter;
 use App\Models\Deposit;
+use App\Support\Money;
 use Filament\Actions\ExportAction;
 use Filament\Actions\Exports\Enums\ExportFormat;
 use Filament\Tables\Columns\TextColumn;
@@ -43,8 +44,12 @@ class UnreconciledDepositsWidget extends BaseWidget
                 TextColumn::make('territory.name')
                     ->label('Territory'),
                 TextColumn::make('amount')
-                    ->label('Amount (₦)')
-                    ->money('NGN')
+                    ->label('Amount')
+                    ->formatStateUsing(fn (mixed $state): ?string => match (true) {
+                        $state === null => null,
+                        $state instanceof Money => $state->format(),
+                        default => Money::of($state)->format(),
+                    })
                     ->sortable(),
                 TextColumn::make('status')
                     ->badge()

@@ -29,16 +29,20 @@ class CustomerActivityWidget extends BaseWidget
             ];
         }
 
-        $lastDistributionDate = Distribution::visibleTo($user)
+        $lastDistributionAt = Distribution::visibleTo($user)
             ->where('customer_id', $this->record->id)
-            ->max('invoice_date');
+            ->latest('invoice_date')
+            ->latest('created_at')
+            ->value('created_at');
 
-        $lastDepositDate = Deposit::visibleTo($user)
+        $lastDepositAt = Deposit::visibleTo($user)
             ->where('customer_id', $this->record->id)
-            ->max('deposit_date');
+            ->latest('deposit_date')
+            ->latest('created_at')
+            ->value('created_at');
 
-        $lastDistribution = $lastDistributionDate ? Carbon::parse($lastDistributionDate) : null;
-        $lastDeposit = $lastDepositDate ? Carbon::parse($lastDepositDate) : null;
+        $lastDistribution = $lastDistributionAt ? Carbon::parse($lastDistributionAt) : null;
+        $lastDeposit = $lastDepositAt ? Carbon::parse($lastDepositAt) : null;
 
         $lastActivity = collect([$lastDistribution, $lastDeposit])
             ->filter()

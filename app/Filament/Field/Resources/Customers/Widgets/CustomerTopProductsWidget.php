@@ -46,7 +46,7 @@ class CustomerTopProductsWidget extends BaseWidget
                     ->label('Product'),
                 TextColumn::make('total_quantity')
                     ->label('Quantity')
-                    ->numeric(2)
+                    ->numeric(decimalPlaces: 0)
                     ->sortable(),
                 TextColumn::make('total_value')
                     ->label('Value (₦)')

@@ -118,10 +118,10 @@ describe('CustomerActivityWidget', function (): void {
         $deposit = Deposit::factory()->forCustomer($this->customer)->by($this->rep)
             ->create(['deposit_date' => now()->subDays(3)]);
 
+        // The widget renders relative ("ago") times, not raw dates.
         livewire(CustomerActivityWidget::class, ['record' => $this->customer])
-            ->assertSee($distribution->invoice_date->format('Y-m-d'))
-            ->assertSee($deposit->deposit_date->format('Y-m-d'))
-            ->assertSee('3');
+            ->assertSee($distribution->invoice_date->ago())
+            ->assertSee($deposit->deposit_date->ago());
     });
 
     it('falls back to placeholders when the customer has no activity', function (): void {

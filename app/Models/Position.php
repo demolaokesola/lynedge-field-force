@@ -72,6 +72,22 @@ class Position extends Model
     }
 
     /**
+     * @return HasMany<Distribution, $this>
+     */
+    public function distributions(): HasMany
+    {
+        return $this->hasMany(Distribution::class);
+    }
+
+    /**
+     * @return HasMany<Call, $this>
+     */
+    public function calls(): HasMany
+    {
+        return $this->hasMany(Call::class);
+    }
+
+    /**
      * Restrict to the positions a viewer may see in the org tree.
      *
      * National roles see all; a regional_head sees positions in their region's

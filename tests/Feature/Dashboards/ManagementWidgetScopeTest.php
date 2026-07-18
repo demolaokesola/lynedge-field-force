@@ -2,6 +2,7 @@
 
 use App\Enums\DepositStatus;
 use App\Enums\PositionStatus;
+use App\Filament\Management\Resources\Positions\Widgets\PositionsSummaryWidget;
 use App\Filament\Management\Widgets\AttainmentLeaderboardWidget;
 use App\Filament\Management\Widgets\CallCoverageWidget;
 use App\Filament\Management\Widgets\StrictCoverageGapsWidget;
@@ -171,6 +172,29 @@ describe('StrictCoverageGapsWidget', function (): void {
         livewire(StrictCoverageGapsWidget::class)
             ->assertCanSeeTableRecords([$strictVacant])
             ->assertCanNotSeeTableRecords([$liberalVacant]);
+    });
+});
+
+describe('PositionsSummaryWidget', function (): void {
+    it('scopes position counts to the region for a regional_head', function (): void {
+        $head = User::factory()->withRole('regional_head')->inRegion($this->regionA)->create();
+
+        // In region A: one vacant, one occupied -> Occupied % = 50.0.
+        Position::factory()->create(['territory_id' => $this->terrA->id, 'status' => PositionStatus::Active]);
+        $occupied = Position::factory()->create(['territory_id' => $this->terrA->id, 'status' => PositionStatus::Active]);
+        PositionAssignment::factory()->create([
+            'position_id' => $occupied->id,
+            'user_id' => User::factory()->create()->id,
+            'effective_to' => null,
+        ]);
+
+        // Out of region — must not affect the count.
+        Position::factory()->count(5)->create(['territory_id' => $this->terrB->id, 'status' => PositionStatus::Active]);
+
+        $this->actingAs($head);
+
+        livewire(PositionsSummaryWidget::class)
+            ->assertSee('50.0%');
     });
 });
 

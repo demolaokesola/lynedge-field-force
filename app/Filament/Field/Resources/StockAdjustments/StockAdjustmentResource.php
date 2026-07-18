@@ -30,6 +30,8 @@ class StockAdjustmentResource extends Resource
 
     protected static ?string $navigationLabel = 'Stock Adjustments';
 
+    protected static ?int $navigationSort = 3;
+
     public static function infolist(Schema $schema): Schema
     {
         return StockAdjustmentInfolist::configure($schema);

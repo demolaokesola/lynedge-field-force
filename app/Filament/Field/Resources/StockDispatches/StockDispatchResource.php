@@ -29,6 +29,8 @@ class StockDispatchResource extends Resource
 
     protected static ?string $navigationLabel = 'Stock Dispatches';
 
+    protected static ?int $navigationSort = 2;
+
     public static function infolist(Schema $schema): Schema
     {
         return StockDispatchInfolist::configure($schema);

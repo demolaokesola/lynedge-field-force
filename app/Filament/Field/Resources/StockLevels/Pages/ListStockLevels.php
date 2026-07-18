@@ -9,6 +9,8 @@ class ListStockLevels extends ListRecords
 {
     protected static string $resource = StockLevelResource::class;
 
+     protected static ?string $title = 'Stock Levels';
+
     protected function getHeaderActions(): array
     {
         return [

@@ -3,6 +3,7 @@
 namespace App\Filament\Office\Resources\Positions\RelationManagers;
 
 use App\Enums\AssignmentStatus;
+use App\Models\PositionAssignment;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
@@ -15,6 +16,7 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class AssignmentsRelationManager extends RelationManager
 {
@@ -28,7 +30,15 @@ class AssignmentsRelationManager extends RelationManager
             ->components([
                 Select::make('user_id')
                     ->label('Rep')
-                    ->relationship('user', 'name')
+                    ->relationship('user', 'name', fn (Builder $query, ?PositionAssignment $record) => $query
+                        ->role('sales_rep')
+                        ->whereDoesntHave(
+                            'activePositionAssignment',
+                            fn (Builder $q) => $q->when(
+                                $record?->exists,
+                                fn (Builder $q) => $q->whereKeyNot($record->getKey()),
+                            ),
+                        ))
                     ->required()
                     ->searchable()
                     ->preload(),

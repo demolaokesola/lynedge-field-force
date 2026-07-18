@@ -46,7 +46,10 @@ class PositionForm
                     ->live()
                     ->disabled(fn (Get $get): bool => blank($get('region_id')))
                     ->helperText('Filtered to territories in the selected region.')
-                    ->afterStateUpdated(fn (Set $set) => $set('team_id', null)),
+                    ->afterStateUpdated(function (Set $set): void {
+                        $set('team_id', null);
+                        $set('supervisor_id', null);
+                    }),
                 Select::make('team_id')
                     ->label('Team')
                     // Only teams whose kind matches the selected territory's policy.
@@ -95,12 +98,11 @@ class PositionForm
                     ->formatStateUsing(fn (Get $get): ?string => self::previewCode($get('territory_id'), $get('team_id'))),
                 Select::make('supervisor_id')
                     ->label('Supervisor')
-                    ->options(fn (): Collection => User::whereHas('roles', fn ($q) => $q->where('name', 'sales_rep'))
-                        ->orderBy('name')
-                        ->pluck('name', 'id'))
+                    ->options(fn (Get $get): Collection => self::supervisorCandidates($get('territory_id')))
                     ->searchable()
                     ->preload()
-                    ->helperText('Optional. Grants this rep elevated read access over this position\'s activity.'),
+                    ->disabled(fn (Get $get): bool => blank($get('territory_id')))
+                    ->helperText('Optional. Filtered to reps currently active in this territory. Grants this rep elevated read access over this position\'s activity.'),
                 Select::make('status')
                     ->options(PositionStatus::class)
                     ->default(PositionStatus::Active)
@@ -142,6 +144,27 @@ class PositionForm
         return Team::query()
             ->where('active', true)
             ->where('kind', $territory->team_policy->value)
+            ->orderBy('name')
+            ->pluck('name', 'id');
+    }
+
+    /**
+     * sales_reps currently active (open PositionAssignment) in the given territory,
+     * for the territory-scoped supervisor select.
+     *
+     * @return Collection<int, string>
+     */
+    protected static function supervisorCandidates(mixed $territoryId): Collection
+    {
+        if (blank($territoryId)) {
+            return collect();
+        }
+
+        return User::whereHas('roles', fn ($q) => $q->where('name', 'sales_rep'))
+            ->whereHas(
+                'activePositionAssignment.position',
+                fn ($q) => $q->where('territory_id', $territoryId),
+            )
             ->orderBy('name')
             ->pluck('name', 'id');
     }

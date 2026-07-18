@@ -6,7 +6,7 @@ use App\Filament\Field\Pages\Dashboard;
 use App\Filament\Shared\Resources\Calls\CallResource;
 use App\Filament\Shared\Resources\Deposits\DepositResource;
 use App\Filament\Shared\Resources\Distributions\DistributionResource;
-use Filament\Http\Middleware\Authenticate;
+use App\Http\Middleware\RedirectUnauthenticatedToLogin;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -62,7 +62,7 @@ class FieldPanelProvider extends PanelProvider
                 DispatchServingFilamentEvent::class,
             ])
             ->authMiddleware([
-                Authenticate::class,
+                RedirectUnauthenticatedToLogin::class,
             ]);
     }
 }

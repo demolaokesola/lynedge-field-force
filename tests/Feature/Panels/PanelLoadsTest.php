@@ -20,6 +20,16 @@ test('a user without the right role is denied entry to the panel', function (): 
     $this->actingAs($salesRep)->get('/office')->assertForbidden();
 });
 
-test('a guest is redirected to the panel login', function (): void {
-    $this->get('/office')->assertRedirect('/office/login');
+test('a guest is redirected to the centralized login', function (): void {
+    $this->get('/office')->assertRedirect('/');
 });
+
+test('logging out of any panel returns to the centralized login', function (string $role, string $path): void {
+    $user = User::factory()->withRole($role)->create();
+
+    $this->actingAs($user)
+        ->post("{$path}/logout")
+        ->assertRedirect('/');
+
+    $this->assertGuest();
+})->with('panel paths');

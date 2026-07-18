@@ -47,6 +47,26 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
+     * The panel this user should land in after a centralized login. Superuser is a
+     * break-glass role with no home panel of its own, so it defaults to 'office'.
+     * Returns null when the user holds no role that maps to a panel.
+     */
+    public function defaultPanelId(): ?string
+    {
+        if ($this->hasRole('superuser')) {
+            return 'office';
+        }
+
+        foreach (self::PANEL_ROLES as $panelId => $roles) {
+            if ($this->hasAnyRole($roles)) {
+                return $panelId;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * The region this user is anchored to. Set only for region-scoped non-reps
      * (regional_head, optionally accountant); reps derive region from their Position.
      *

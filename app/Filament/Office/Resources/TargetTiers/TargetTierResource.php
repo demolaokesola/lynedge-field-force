@@ -5,7 +5,7 @@ namespace App\Filament\Office\Resources\TargetTiers;
 use App\Filament\Office\Resources\TargetTiers\Pages\CreateTargetTier;
 use App\Filament\Office\Resources\TargetTiers\Pages\EditTargetTier;
 use App\Filament\Office\Resources\TargetTiers\Pages\ListTargetTiers;
-use App\Filament\Office\Resources\TargetTiers\RelationManagers\TierLinesRelationManager;
+use App\Filament\Office\Resources\TargetTiers\Pages\TierVolumesGrid;
 use App\Filament\Office\Resources\TargetTiers\Schemas\TargetTierForm;
 use App\Filament\Office\Resources\TargetTiers\Tables\TargetTiersTable;
 use App\Models\TargetTier;
@@ -38,9 +38,7 @@ class TargetTierResource extends Resource
 
     public static function getRelations(): array
     {
-        return [
-            TierLinesRelationManager::class,
-        ];
+        return [];
     }
 
     public static function getPages(): array
@@ -48,6 +46,7 @@ class TargetTierResource extends Resource
         return [
             'index' => ListTargetTiers::route('/'),
             'create' => CreateTargetTier::route('/create'),
+            'volumes' => TierVolumesGrid::route('/volumes'),
             'edit' => EditTargetTier::route('/{record}/edit'),
         ];
     }

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\PositionStatus;
+use App\Models\Concerns\ScopesToPosition;
 use App\Models\Position;
 use App\Models\PositionAssignment;
 use App\Models\Product;
@@ -129,6 +130,21 @@ class RepScope
                 ->whereNull('effective_to')
                 ->orWhereDate('effective_to', '>=', $on))
             ->pluck('user_id')
+            ->unique();
+    }
+
+    /**
+     * The ids of positions a user either currently holds or supervises — the position
+     * ownership set used by {@see ScopesToPosition} for stock
+     * visibility, since stock belongs to the position rather than to a transacting
+     * user_id.
+     *
+     * @return SupportCollection<int, int>
+     */
+    public function positionIdsHeldOrSupervisedBy(User $user, ?Carbon $on = null): SupportCollection
+    {
+        return $this->activePositions($user, $on)->pluck('id')
+            ->merge($this->positionsSupervisedBy($user)->pluck('id'))
             ->unique();
     }
 }

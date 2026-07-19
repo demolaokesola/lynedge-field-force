@@ -10,11 +10,19 @@ use App\Models\TargetAssignment;
 use App\Models\TargetTier;
 use App\Models\TargetTierLine;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Repeater\TableColumn;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Page;
+use Filament\Schemas\Schema;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * @property-read Schema $form
+ */
 class TierVolumesGrid extends Page
 {
     protected static string $resource = TargetTierResource::class;
@@ -22,13 +30,13 @@ class TierVolumesGrid extends Page
     protected string $view = 'filament.office.resources.target-tiers.pages.tier-volumes-grid';
 
     /**
-     * @var array<int, array<int, string|null>>
+     * @var array<string, mixed>|null
      */
-    public array $volumes = [];
+    public ?array $data = [];
 
     public function mount(): void
     {
-        $this->fillVolumes();
+        $this->form->fill(['volumes' => $this->buildVolumesState()]);
     }
 
     protected function getHeaderActions(): array
@@ -38,6 +46,42 @@ class TierVolumesGrid extends Page
                 ->label('Save')
                 ->action('save'),
         ];
+    }
+
+    public function form(Schema $schema): Schema
+    {
+        $tiers = $this->tiers();
+
+        return $schema
+            ->components([
+                Repeater::make('volumes')
+                    ->hiddenLabel()
+                    ->table([
+                        TableColumn::make('Product')->width('220px'),
+                        ...$tiers->map(
+                            fn (TargetTier $tier): TableColumn => TableColumn::make($tier->name)->width('140px'),
+                        )->all(),
+                    ])
+                    ->schema([
+                        Hidden::make('product_id'),
+                        TextInput::make('product_name')
+                            ->hiddenLabel()
+                            ->disabled()
+                            ->dehydrated(false),
+                        ...$tiers->map(
+                            fn (TargetTier $tier): TextInput => TextInput::make("tier_{$tier->id}")
+                                ->hiddenLabel()
+                                ->numeric()
+                                ->minValue(0),
+                        )->all(),
+                    ])
+                    ->addable(false)
+                    ->deletable(false)
+                    ->reorderable(false)
+                    ->compact()
+                    ->columnSpanFull(),
+            ])
+            ->statePath('data');
     }
 
     /**
@@ -61,23 +105,15 @@ class TierVolumesGrid extends Page
         $products = $this->products();
         $tiers = $this->tiers();
 
-        $rules = [];
+        $volumes = $this->form->getState()['volumes'] ?? [];
 
-        foreach ($products as $product) {
-            foreach ($tiers as $tier) {
-                $rules["volumes.{$product->id}.{$tier->id}"] = ['nullable', 'numeric', 'min:0'];
-            }
-        }
-
-        $this->validate($rules);
-
-        $changedTierIds = $this->persistVolumes($products, $tiers);
+        $changedTierIds = $this->persistVolumes($products, $tiers, $volumes);
 
         if ($changedTierIds !== []) {
             $this->rebuildAffectedTargets($changedTierIds);
         }
 
-        $this->fillVolumes();
+        $this->form->fill(['volumes' => $this->buildVolumesState()]);
 
         Notification::make()
             ->title('Volumes saved')
@@ -85,7 +121,10 @@ class TierVolumesGrid extends Page
             ->send();
     }
 
-    private function fillVolumes(): void
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildVolumesState(): array
     {
         $products = $this->products();
         $tiers = $this->tiers();
@@ -94,39 +133,46 @@ class TierVolumesGrid extends Page
             ->whereIn('target_tier_id', $tiers->pluck('id'))
             ->get();
 
-        $this->volumes = $products->mapWithKeys(function (Product $product) use ($tiers, $lines): array {
-            return [
-                $product->id => $tiers->mapWithKeys(function (TargetTier $tier) use ($product, $lines): array {
-                    $line = $lines->first(
-                        fn (TargetTierLine $line): bool => $line->target_tier_id === $tier->id
-                            && $line->product_id === $product->id,
-                    );
+        return $products->mapWithKeys(function (Product $product) use ($tiers, $lines): array {
+            $row = ['product_id' => $product->id, 'product_name' => $product->name];
 
-                    return [$tier->id => $line?->annual_volume];
-                })->all(),
-            ];
+            foreach ($tiers as $tier) {
+                $line = $lines->first(
+                    fn (TargetTierLine $line): bool => $line->target_tier_id === $tier->id
+                        && $line->product_id === $product->id,
+                );
+
+                $row["tier_{$tier->id}"] = $line?->annual_volume;
+            }
+
+            return [$product->id => $row];
         })->all();
     }
 
     /**
      * @param  Collection<int, Product>  $products
      * @param  Collection<int, TargetTier>  $tiers
+     * @param  array<int, array<string, mixed>>  $volumes
      * @return array<int, int> changed target_tier_id values
      */
-    private function persistVolumes(Collection $products, Collection $tiers): array
+    private function persistVolumes(Collection $products, Collection $tiers, array $volumes): array
     {
         $changedTierIds = [];
 
-        DB::transaction(function () use ($products, $tiers, &$changedTierIds): void {
+        $volumesByProduct = collect($volumes)->keyBy('product_id');
+
+        DB::transaction(function () use ($products, $tiers, $volumesByProduct, &$changedTierIds): void {
             $existing = TargetTierLine::query()
                 ->whereIn('target_tier_id', $tiers->pluck('id'))
                 ->get()
                 ->keyBy(fn (TargetTierLine $line): string => "{$line->target_tier_id}.{$line->product_id}");
 
             foreach ($products as $product) {
+                $row = $volumesByProduct->get($product->id, []);
+
                 foreach ($tiers as $tier) {
                     $current = $existing->get("{$tier->id}.{$product->id}");
-                    $submitted = $this->volumes[$product->id][$tier->id] ?? null;
+                    $submitted = $row["tier_{$tier->id}"] ?? null;
                     $submitted = $submitted === '' ? null : $submitted;
 
                     if ($submitted === null) {

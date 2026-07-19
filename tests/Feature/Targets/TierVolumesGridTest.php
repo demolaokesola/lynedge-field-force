@@ -26,17 +26,27 @@ test('the grid pre-fills existing annual volumes', function (): void {
     ]);
 
     livewire(TierVolumesGrid::class)
-        ->assertSet("volumes.{$product->id}.{$tier->id}", '1200.00');
+        ->assertSchemaStateSet(function (array $state) use ($product, $tier): void {
+            $row = collect($state['volumes'])->firstWhere('product_id', $product->id);
+
+            expect($row)->not->toBeNull();
+            expect($row["tier_{$tier->id}"])->toBe(1200.0);
+        });
 });
 
 test('editing a cell and saving persists the new value', function (): void {
     $product = Product::factory()->create();
     $tier = TargetTier::factory()->create();
 
-    livewire(TierVolumesGrid::class)
-        ->set("volumes.{$product->id}.{$tier->id}", '1500')
+    $component = livewire(TierVolumesGrid::class);
+    $rowKey = array_key_first($component->instance()->form->getRawState()['volumes']);
+
+    $component
+        ->fillForm([
+            'volumes' => [$rowKey => ["tier_{$tier->id}" => '1500']],
+        ])
         ->call('save')
-        ->assertHasNoErrors();
+        ->assertHasNoFormErrors();
 
     $this->assertDatabaseHas('target_tier_lines', [
         'target_tier_id' => $tier->id,
@@ -54,8 +64,13 @@ test('clearing a cell deletes the underlying line', function (): void {
         'annual_volume' => 1200,
     ]);
 
-    livewire(TierVolumesGrid::class)
-        ->set("volumes.{$product->id}.{$tier->id}", '')
+    $component = livewire(TierVolumesGrid::class);
+    $rowKey = array_key_first($component->instance()->form->getRawState()['volumes']);
+
+    $component
+        ->fillForm([
+            'volumes' => [$rowKey => ["tier_{$tier->id}" => '']],
+        ])
         ->call('save');
 
     $this->assertDatabaseMissing('target_tier_lines', [
@@ -68,15 +83,25 @@ test('negative and non-numeric values are rejected', function (): void {
     $product = Product::factory()->create();
     $tier = TargetTier::factory()->create();
 
-    livewire(TierVolumesGrid::class)
-        ->set("volumes.{$product->id}.{$tier->id}", '-5')
-        ->call('save')
-        ->assertHasErrors(["volumes.{$product->id}.{$tier->id}"]);
+    $component = livewire(TierVolumesGrid::class);
+    $rowKey = array_key_first($component->instance()->form->getRawState()['volumes']);
 
-    livewire(TierVolumesGrid::class)
-        ->set("volumes.{$product->id}.{$tier->id}", 'not-a-number')
+    $component
+        ->fillForm([
+            'volumes' => [$rowKey => ["tier_{$tier->id}" => '-5']],
+        ])
         ->call('save')
-        ->assertHasErrors(["volumes.{$product->id}.{$tier->id}"]);
+        ->assertHasFormErrors(["volumes.{$rowKey}.tier_{$tier->id}"]);
+
+    $component = livewire(TierVolumesGrid::class);
+    $rowKey = array_key_first($component->instance()->form->getRawState()['volumes']);
+
+    $component
+        ->fillForm([
+            'volumes' => [$rowKey => ["tier_{$tier->id}" => 'not-a-number']],
+        ])
+        ->call('save')
+        ->assertHasFormErrors(["volumes.{$rowKey}.tier_{$tier->id}"]);
 });
 
 test('saving dispatches a rebuild only for reps assigned a changed tier', function (): void {
@@ -101,8 +126,13 @@ test('saving dispatches a rebuild only for reps assigned a changed tier', functi
     // (not TargetAssignmentObserver's create-time dispatch) is asserted.
     Bus::fake();
 
-    livewire(TierVolumesGrid::class)
-        ->set("volumes.{$product->id}.{$changedTier->id}", '2000')
+    $component = livewire(TierVolumesGrid::class);
+    $rowKey = array_key_first($component->instance()->form->getRawState()['volumes']);
+
+    $component
+        ->fillForm([
+            'volumes' => [$rowKey => ["tier_{$changedTier->id}" => '2000']],
+        ])
         ->call('save');
 
     Bus::assertDispatchedTimes(RebuildRepMonthlyTargetsJob::class, 1);

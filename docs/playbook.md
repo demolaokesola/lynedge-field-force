@@ -614,10 +614,43 @@ Final pass, no new features:
 Stop and give me a coverage summary + the index list + the integrity command.
 ```
 
+### Phase 10 — AI narrative summaries on the management dashboard (nice-to-have)
+```
+Optional; only after Phase 9. Adds a Claude-generated "weekly brief" to the management
+panel. AI is read-only here: it narrates numbers the widgets already compute, it never
+writes to any table or bypasses a scope.
+
+Dependency: anthropic-ai/sdk (composer). ANTHROPIC_API_KEY in .env, never in code.
+Bind Anthropic\Client in a service provider so tests can swap in a fake.
+
+1. Migration: dashboard_briefs (id, scope_type enum company|region, scope_id nullable
+   region_id, period_start date, period_end date, body text, input_snapshot jsonb,
+   model string, generated_at). UNIQUE(scope_type, scope_id, period_start).
+2. Service app/Services/Ai/DashboardBriefService: builds the input payload ONLY from
+   the same aggregate queries the Phase 8 widgets use (attainment leaderboard, call
+   coverage, strict coverage gaps, reconciliation status), scoped by region for a
+   regional brief and company-wide for HQ. Send aggregates, never raw rows; pseudonymise
+   reps/customers to ids if the client requires it. Persist the payload in
+   input_snapshot so a brief is reproducible. Stable system prompt with prompt caching;
+   structured output (headline + 3–6 bullets + list of flagged territories/positions).
+3. Job GenerateDashboardBriefJob (queued) + scheduled weekly (Monday 06:00 WAT) for the
+   company and for every region. Failures are logged and leave the previous brief in
+   place — a missing brief must never break the dashboard.
+4. Widget DashboardBriefWidget in the management panel: hq_lead sees the company brief,
+   regional_head sees their region's brief (resolve via users.region_id, same rule as
+   scopeVisibleOrgTo). Show generated_at and a "regenerate" action gated to hq_lead.
+5. Pest (fake the Anthropic client — assert on the payload sent, not on model output):
+   regional payload contains only that region's territories; hq payload is company-wide;
+   a job failure preserves the previous brief; widget renders the correct brief per
+   role and nothing for sales_rep/supervisor.
+Stop & confirm.
+```
+
 ---
 
 ## 7. Sequencing notes
 - Phases 0–3 are the spine. Phase 0 stands up the three panels + `canAccessPanel`; everything after registers resources into the right panel(s). The strict guarantee spans Phase 2 (kind-match + `UNIQUE(territory,team)`) **and** Phase 3 (the ≤1-strict-team rule) — both must be in place before Phase 5's distribution guard can rely on it.
 - 4/5/6 are independent of each other once 3 exists; parallelise if you have help.
 - 7 depends on 3 (products) and 5 (posted distributions for actuals).
+- 10 is optional and strictly after 9: it reads the Phase 8 widget aggregates and relies on the Phase 9 scope audit being green before any data leaves the app.
 - Treat each "stop and confirm" as a real gate: review the migration and the named tests before moving on. That review loop is the single biggest lever on output quality with an AI agent.

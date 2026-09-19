@@ -1,656 +1,319 @@
-# Pharma Sales & Demand-Creation Tracker — Build Playbook
+# Pharma Sales & Demand-Creation Tracker — Build Playbook (v2: outstanding work)
 **Stack:** Laravel 13 · Filament 5 (Livewire 4 / Tailwind 4) · PostgreSQL · Pest · Laravel Sail · Laravel Boost
 **Context:** Rebuild of an Oracle APEX field-force tracker for a Nigerian pharma company.
+**Status (2026-09-19):** Phases 0–8 of the original playbook are built, committed and green (`329 passed, 818 assertions`). This rewrite records what exists, what changed along the way, and the phases still to run.
 
-> Filament 5 is **functionally identical to Filament 4** — same forms, tables, resources, panels, relation managers. The only reason v5 exists is Livewire 4 support. So write v4-idiom Filament, pin the v5-compatible release of every plugin, and let Boost's `search-docs` confirm exact signatures.
-
-### Decisions locked in
-- **Products ↔ teams are many-to-many.** Teams are typed `strict | liberal`. A product joins **at most one strict team** and **any number of liberal teams** — this keeps strict teams a disjoint partition, so the strict guarantee stays a database-level fact.
-- **Targets are set as an annual volume per product at cycle start** (via tier). Monthly is derived for pacing only. A **mid-cycle change is a prorated blend** of the spans.
-- **Three Filament panels** — `field` (reps/supervisors), `office` (admin + accountant), `management` (HQ/regional oversight) — sharing resource classes. Panels group navigation by audience; authorization stays in Policies + `scopeVisibleTo()`.
+> Filament 5 is **functionally identical to Filament 4** — write v4-idiom Filament and let Boost's `search-docs` confirm exact signatures. The domain invariants, the two visibility scopes, and the per-phase workflow live in `.ai/guidelines/project.blade.php` and `.ai/guidelines/workflow.blade.php` (rendered into `CLAUDE.md`). **Those files are the source of truth** — this playbook does not repeat them.
 
 ---
 
-## 0. Assumptions & key decisions
+## 0. Where the build stands
 
-Override before you start if any are wrong.
+### 0.1 Done (original Phases 0–8)
 
-1. **Org tree is fixed at 3 levels** under an implicit HQ: `Region → Territory`. HQ is conceptual (the HQ Lead role has global scope), so no `hq` table. If a Regional Head can ever own more than one region, swap `users.region_id` for a pivot.
-2. **Products ↔ teams (product groups) are many-to-many** via `product_team`. Teams carry a `kind` (`strict | liberal`). **A product may belong to at most one strict team, and to any number of liberal teams.** This makes strict teams a disjoint partition of the catalog, which keeps "no two reps sell the same product" true inside a strict territory without per-product checks. *Assumes a single strict slicing of the catalog org-wide* (your Team A / Team B partition). If different regions ever need different, overlapping strict groupings, relax this to territory-scoped product-disjointness (§2.6).
-3. **The atomic manned unit is a Position** = `(territory, team)`. Strict vs liberal is a *constraint on positions within a territory*, plus the team-kind match — not two different entities.
-4. **Targets are a time series of annual figures.** A tier carries an **annual** volume per product; reps get time-bounded assignments; a mid-cycle change is a **prorated blend** of the spans; YTD is computed against a materialised monthly table.
-5. **Transactions denormalise `territory_id` / `team_id` at write time.** Reorgs happen; reporting must reflect historical truth, so the slot/team is frozen onto each call, distribution, and deposit.
-6. **Money:** `decimal(18,2)` Naira, cast to a Money value object (or integer kobo). **Quantities:** `decimal(14,2)` to allow part-packs.
-7. **RBAC:** spatie/laravel-permission via Filament Shield (v5-compatible release). If Shield lags on v5, fall back to plain spatie + hand-written Policies.
-8. **Three panels by audience** (see §5 for the principle):
-   - **`field`** — Sales Rep, Supervisor. Mobile-first. Daily activity + personal performance.
-   - **`office`** — Platform Admin, Superuser, Accountant. Back office: master-data/config, users & roles, and deposits/reconciliation.
-   - **`management`** — HQ Lead, Regional Head. Oversight only: dashboards, leaderboards, scoped reports, read-only drill-downs.
-   A panel is a navigation/UX context, **not** the security boundary — authorization stays in Policies + `scopeVisibleTo()`, so resource classes are safely shared across panels.
+| Area | What exists | Where to look |
+|---|---|---|
+| Foundation | spatie/permission + Shield (`superuser` = Shield super-admin, bypass via `Gate::before`); three panels `field` / `office` / `management` with `User::canAccessPanel()`; `MoneyCast`; enums for every status/kind column; activitylog package installed (table migrated, **nothing logs yet**) | `app/Providers/Filament/*`, `app/Models/User.php`, `app/Casts/MoneyCast.php`, `app/Enums/*` |
+| Org & RBAC | regions, territories (`team_policy`), teams (`kind`), users (`region_id`, `is_active`); roles seeded; `scopeVisibleOrgTo` on Region/Territory | `app/Models/{Region,Territory,Team}.php`, `database/seeders/RolesSeeder.php` |
+| Positions | positions + position_assignments with both partial unique indexes; `PositionObserver` syncs `enforce_team_uniqueness` and **derives `code` as `{territory.code}-{team.code}`**; `TerritoryObserver`/`TeamObserver` re-sync children; kind-match + strict-uniqueness rules; Office resource + Assignments relation manager; **read-only Positions resource in management** | `app/Observers/*`, `app/Filament/Office/Resources/Positions`, `app/Filament/Management/Resources/Positions` |
+| Master data | products, product_team pivot (`TeamMembership` pivot model enforces ≤1 strict team), customers, demand_creator_types (seeded), demand_creators; `ScopesToTerritory` on Customer/DemandCreator; `created_by` on both | `app/Models/Relations/TeamMembership.php`, `app/Models/Concerns/ScopesToTerritory.php` |
+| Calls | calls + call_product; territory derived from active position; `ScopesToViewer`; shared resource registered in field (write own) + management (read-only) | `app/Filament/Shared/Resources/Calls` |
+| Distributions | distributions + lines; created under one invoiceable position, `team_id` copied; product-team guard (`RepScope::productsForPosition`); **unit_price authoritative from product**; totals recomputed server-side; Draft → Posted (submit action) → Void | `app/Filament/Shared/Resources/Distributions`, `app/Services/RepScope.php` |
+| Deposits | deposits + deposit_allocations; status derived from allocated vs amount; allocation ≤ amount; field (record) + office (manage/allocate) | `app/Filament/Shared/Resources/Deposits` |
+| Targets | cycles, target_tiers, target_tier_lines, target_assignments, target_assignment_lines, rep_monthly_targets; `TargetMaterializer` (1/12 divisor, mid-month fix landed), `AttainmentService`, `TargetAssignmentObserver` → `RebuildRepMonthlyTargetsJob`; Office resources incl. a **products × tiers volume grid** (`TierVolumesGrid`, native table-Repeater) | `app/Services/TargetMaterializer.php`, `app/Services/AttainmentService.php`, `app/Filament/Office/Resources/TargetTiers` |
+| Dashboards & exports | Field: YTD attainment, rep performance overview, call summary, recent distributions, outstanding deposits, stale customers, no-position / no-cycle / supervisor-scope notices. Management: attainment leaderboard, call coverage, vacant positions, strict coverage gaps, reconciliation status. Office: company roll-up, top/bottom reps, distribution trend, unreconciled deposits, reconciliation aging. CSV exporters for six cuts | `app/Filament/{Field,Management}/Widgets`, `app/Filament/Widgets`, `app/Filament/Exports` |
+| Tests | 53 Pest files across Calls, Customers, Dashboards, DemandCreators, Deposits, Distributions, MasterData, Org, Panels, Products, Stock, Targets | `tests/Feature/*` |
 
----
+### 0.2 Built beyond the original playbook
 
-## 1. Data model
+These were added during Phases 1–8 and are now part of the product. Prompts below assume them.
 
-Grouped by domain. Only load-bearing columns are listed; add timestamps/soft-deletes per your conventions.
+1. **No `supervisor` role.** Supervisory read is derived from `Position.supervisor_id` (set by platform_admin in Office). `User::isSupervisor()`, `RepScope::positionsSupervisedBy()`, `RepScope::subordinateUserIds()`. Roles are the six in `RolesSeeder`. `canAccessPanel`: field → `sales_rep`; office → `platform_admin|accountant`; management → `hq_lead|regional_head`; `superuser` → all.
+2. **Panel-namespaced resources.** `app/Filament/Field`, `Office`, `Management` hold panel-specific resources; `app/Filament/Shared` holds the resources registered in more than one panel (Calls, Deposits, Distributions). The Office panel discovers `app/Filament/Widgets`.
+3. **Field panel has its own customer-data cluster** (`CustomerDataCluster`): reps create/view Customers and Demand Creators scoped to their territory (with `created_by`), and get a read-only Products view. The original "no field CRUD for master data" assumption was reversed.
+4. **`Position.label` dropped; `Position.code` derived** from territory + team codes, with collision avoidance. Position rep/supervisor selects are restricted to eligible reps.
+5. **Centralised login** at `/` (`LoginController`) that redirects each user to their home panel (`User::defaultPanelId()`), with logout/timeout routed back to it. Shield's own plugin UI is removed from all panels; roles are assigned through the Users resource + `RolePolicy`.
+6. **Stock management module** (Phase S in the original numbering never existed — it was built after Phase 8):
+   - Tables: `stock_dispatches` (+lines), `stock_adjustments` (+lines), `stock_movements` (immutable ledger), `position_product_stocks` (materialised balance, `UNIQUE(position_id, product_id)`).
+   - Flow: platform_admin ("Operations") creates a dispatch to a position (Draft → Dispatched → Accepted / Void); the occupying rep accepts it into their balance; Operations posts signed adjustments (damage, loss, correction, return, recall). Every change goes through `StockLedger::record()` — the only writer of `stock_movements` and balances.
+   - `ScopesToPosition` trait; `StockDispatchPolicy` / `StockAdjustmentPolicy`; Office resources for dispatches/adjustments; Field `MyStockCluster` (accept dispatches, view levels, view adjustments).
+   - **Gaps:** `StockMovementType` is only `dispatch_acceptance | adjustment` — posting a distribution does **not** consume stock; balances may go negative; no stock widgets on any dashboard; no management read; no exports. See Phase 10.
+7. **Filament import/export tables** + `notifications` table are migrated (used by the CSV exporters).
 
-### Org & access
-- **regions** — `id, name, code`
-- **territories** — `id, region_id, name, code, team_policy enum('strict','liberal') default 'strict'`
-- **teams** *(product groups: A, B, …)* — `id, name, code, kind enum('strict','liberal'), active`
-- **users** — standard + `region_id (nullable)`, `is_active`. Roles via Shield. Reps derive region through position → territory → region; `region_id` is set explicitly only for region-scoped non-reps (Regional Head, optionally Accountant).
-- **positions** — `id, territory_id, team_id, code, label, enforce_team_uniqueness bool, status enum('active','frozen') default 'active'`
-  - The position's `team.kind` must equal the `territory.team_policy` (enforced — §2.3).
-  - Partial unique: `UNIQUE(territory_id, team_id) WHERE enforce_team_uniqueness AND status='active'`
-- **position_assignments** *(temporal occupancy)* — `id, position_id, user_id, effective_from date, effective_to date null, status enum('active','ended'), notes`
-  - Partial unique: `UNIQUE(position_id) WHERE effective_to IS NULL` (one open occupant per position)
+### 0.3 Not done
 
-### Master data
-- **products** — `id, name, sku, pack_size, unit_price (nullable), active` *(no team_id — membership is the pivot below)*
-- **product_team** *(pivot, many-to-many)* — `product_id, team_id` (PK on both). Invariant: a product may be linked to **≤1 strict team** and any number of liberal teams (§2.0).
-- **customers** *(buying customers, tied to territory)* — `id, territory_id, name, type, address, phone`
-- **demand_creator_types** *(lookup)* — `id, name` — seed: Hospital Pharmacist, Prescribing Community Pharmacist, Doctor/CHEW, Laboratory Scientist, Public Mobilization Place, Merchandizer
-- **demand_creators** — `id, demand_creator_type_id, territory_id, name, affiliation, phone, address`
-
-### Transactions
-- **calls** — `id, user_id, position_id, territory_id, demand_creator_id, call_type enum('physical_visit','phone_call'), called_at datetime, latitude null, longitude null, notes`
-- **call_product** *(pivot, products detailed on the call)* — `call_id, product_id`
-- **distributions** *(invoices — created under one position, so single-team)* — `id, user_id, position_id, territory_id, team_id, customer_id, invoice_number, invoice_date date, total_amount decimal(18,2), status enum('draft','posted','void'), notes`
-  - `team_id` is denormalised from the chosen position's team. All lines are products in that team.
-- **distribution_lines** — `id, distribution_id, product_id, quantity decimal(14,2), unit_price decimal(18,2), line_amount decimal(18,2)` *(team is the distribution header's; no per-line team_id)*
-- **deposits** *(bulk payment, not invoice-bound)* — `id, customer_id, territory_id, received_by_user_id, amount decimal(18,2), deposit_date date, reference, bank, channel, status enum('unreconciled','partially_reconciled','reconciled','disputed'), notes`
-- **deposit_allocations** *(optional reconciliation)* — `id, deposit_id, distribution_id null, amount decimal(18,2), allocated_by_user_id, allocated_at`
-
-### Targets
-- **cycles** — `id, name, starts_on date, ends_on date, is_current bool` (e.g. "2025/2026", 2025-02-01 → 2026-01-31)
-- **target_tiers** — `id, name, description, active`
-- **target_tier_lines** — `id, target_tier_id, product_id, annual_volume decimal(14,2)` *(annual, set at cycle start)*
-- **target_assignments** — `id, cycle_id, user_id, position_id null, target_tier_id null, basis enum('tier','custom'), effective_from date, effective_to date null, reason enum('initial','tier_change','maternity','leave','adjustment','custom'), notes`
-- **target_assignment_lines** *(overrides; used when basis='custom' or to tweak specific products)* — `id, target_assignment_id, product_id, annual_volume decimal(14,2)`
-- **rep_monthly_targets** *(materialised — derived from assignments)* — `id, cycle_id, user_id, year_month date, product_id, target_qty decimal(14,2)` — `UNIQUE(cycle_id, user_id, year_month, product_id)`
+- **Original Phase 9 (hardening)** — nothing started: no `LogsActivity` on any model, no integrity command, no CI, demo seeding stops at positions (`DatabaseSeeder` has `MasterDataSeeder` commented out; no cycles/targets/calls/distributions/deposits/stock seeded), several hot-path indexes missing.
+- **Stock module completion** (sales consumption, dashboards, management read).
+- **Original Phase 10 (AI weekly brief)** — not started.
 
 ---
 
-## 2. Teams: typed, many-to-many, strict vs liberal
+## 1. Standing rules
 
-### 2.0 Team typing + the partition-preserving rule
-A team is built for strict **or** liberal selling (`teams.kind`). A product can be in several teams, but **at most one strict team**. Because strict teams therefore never share a product, they form a disjoint partition of the catalog — which is what makes "no product sold by two reps" hold inside a strict territory.
+Read `.ai/guidelines/project.blade.php` before every phase. Non-negotiables, restated only by title so you know they exist:
+Position = (territory, team) with kind-match + strict uniqueness · ≤1 strict team per product · single-team distributions with the product guard · annual targets, prorated blend, **divisor always 1/12** · denormalised `territory_id`/`team_id` at write time · two scopes (`scopeVisibleTo` vs `scopeVisibleOrgTo`) never conflated · a panel is navigation, never authorization · no `supervisor` role.
 
-Enforce on pivot-attach (a `FormRequest`/Filament rule, or a `pivotAttaching` hook):
-```php
-if ($team->kind === TeamKind::Strict) {
-    $clash = $product->teams()
-        ->where('kind', TeamKind::Strict)
-        ->whereKeyNot($team->id)
-        ->exists();
-    if ($clash) {
-        $fail('A product can belong to at most one strict team. Remove it from the other strict team first, or make this team liberal.');
-    }
-}
-```
-
-### 2.1 Migration (partial unique indexes)
-```php
-// positions migration
-DB::statement("
-    CREATE UNIQUE INDEX positions_strict_team_unique
-    ON positions (territory_id, team_id)
-    WHERE enforce_team_uniqueness AND status = 'active'
-");
-
-// position_assignments migration
-DB::statement("
-    CREATE UNIQUE INDEX one_open_assignment_per_position
-    ON position_assignments (position_id)
-    WHERE effective_to IS NULL
-");
-```
-`UNIQUE(territory_id, team_id)` is **sufficient** for the strict guarantee now, precisely because §2.0 keeps strict teams disjoint.
-
-### 2.2 Keep the uniqueness flag in sync
-```php
-// PositionObserver
-public function saving(Position $position): void
-{
-    $position->enforce_team_uniqueness =
-        $position->territory->team_policy === TeamPolicy::Strict;
-}
-
-// TerritoryObserver — re-sync children when policy flips (rare)
-public function updated(Territory $territory): void
-{
-    if ($territory->wasChanged('team_policy')) {
-        $territory->positions()->update([
-            'enforce_team_uniqueness' => $territory->team_policy === TeamPolicy::Strict,
-        ]);
-    }
-}
-```
-
-### 2.3 Validation: kind-match + strict-uniqueness
-```php
-// (a) team.kind must match territory.team_policy
-$team = Team::find($teamId);
-$territory = Territory::find($this->territoryId);
-if ($team && $territory && $team->kind->value !== $territory->team_policy->value) {
-    $fail("A {$territory->team_policy->value} territory can only hold {$territory->team_policy->value} teams.");
-}
-
-// (b) one active position per (territory, team) in STRICT territories
-if ($territory?->team_policy === TeamPolicy::Strict) {
-    $clash = Position::where('territory_id', $this->territoryId)
-        ->where('team_id', $teamId)->where('status', 'active')
-        ->when($this->ignoreId, fn ($q) => $q->whereKeyNot($this->ignoreId))
-        ->exists();
-    if ($clash) $fail('This team is already manned in this (strict) territory.');
-}
-```
-Filament team picker, filtered by the territory's policy:
-```php
-Select::make('team_id')
-    ->options(fn (Get $get) => Team::query()
-        ->where('kind', Territory::find($get('territory_id'))?->team_policy)
-        ->where('active', true)->pluck('name', 'id'))
-    ->required();
-// (confirm exact Get/relationship syntax for Filament 5 via Boost search-docs)
-```
-
-### 2.4 Transaction guard — "can't distribute the same product"
-A distribution is created **under one position** (the rep picks which of their active positions in the territory they're invoicing under). That position fixes the team, and every line's product must belong to that team's product set.
-```php
-// App\Services\RepScope
-public function invoiceablePositions(User $rep, int $territoryId, ?Carbon $on = null): Collection
-{
-    $on ??= now();
-    return Position::query()
-        ->where('territory_id', $territoryId)->where('status', 'active')
-        ->whereHas('assignments', fn ($q) => $q
-            ->where('user_id', $rep->id)
-            ->where('effective_from', '<=', $on)
-            ->where(fn ($q) => $q->whereNull('effective_to')->orWhere('effective_to', '>=', $on)))
-        ->get();
-}
-
-public function productsForPosition(Position $position): Collection
-{
-    return $position->team->products()->pluck('products.id'); // via product_team
-}
-```
-Line validation: reject any `distribution_line.product_id` not in `productsForPosition($distribution->position)`.
-
-### 2.5 Coverage & vacancy (report queries)
-- **Vacant positions:** `positions` with no `position_assignments` where `effective_to IS NULL`.
-- **Strict coverage gaps:** for each strict territory, active strict `teams` minus the `team_id`s with an active, occupied position.
-
-### 2.6 Fallback if you ever need multiple strict slicings
-Drop the global ≤1-strict-team rule and enforce **territory-scoped product-disjointness**: when adding a position to a strict territory, reject if any of that team's products are already covered by another active position's team in the same territory. Optionally back it with a materialised `(territory_id, product_id)` unique index (rebuilt on position *and* product_team changes). Not needed for the current A/B partition.
+Per-phase workflow (`.ai/guidelines/workflow.blade.php`): inspect with Boost (`database-schema`, `list-models`) → `php artisan test` green → restate the slice → build (migration → models/enums → Filament in the named panel[s] → named Pest tests) → `php artisan test` → summarise diff + show output → **STOP** and wait for review.
 
 ---
 
-## 3. Targets — annual figures, prorated, materialised monthly
+## 2. Outstanding phases — paste one block per turn
 
-### 3.1 The model in one line
-A tier (or custom override) sets an **annual** volume per product. A rep's effective target over the cycle is a **prorated blend** of whatever assignment was in effect each month, materialised into `rep_monthly_targets` so YTD is a `SUM`.
+The original Phase 9 was one giant slice; it is split into 9A–9F so each has a clean review gate. Phase 10 closes the stock module. Phase 11 is the optional AI brief. Standing instruction for every prompt: *use Boost `search-docs` for exact Filament 5 / Laravel 13 syntax, and `database-schema` before any migration.*
 
-### 3.2 Materialisation rule (mind the divisor)
+### Phase 9A — Authorization matrix audit
 ```
-For each month M in [cycle.starts_on .. cycle.ends_on]:
-  seg    = the target_assignment active on the 1st of M
-  annual = per-product annual_volume for seg
-             basis=custom -> target_assignment_lines
-             basis=tier   -> target_tier_lines, overridden per-product by assignment_lines
-  weight = seasonal weight for M (default 1/12 — even split)
-  target_qty[M, product] = annual * weight
-  upsert one rep_monthly_targets row per (rep, cycle, M, product)
-```
-**Critical:** the divisor is always the *full year* (`1/12`), never the number of months the span covers. Dividing the annual by the span length is the bug that silently breaks proration. Re-run on any assignment create/update/delete (queue from a `TargetAssignmentObserver`).
+Hardening, no new features. Read .ai/guidelines/* first; run the suite and confirm green.
 
-### 3.3 Attainment
-```php
-$targetYtd = RepMonthlyTarget::where('cycle_id', $cycle->id)
-    ->where('user_id', $rep->id)
-    ->where('year_month', '<=', $asOf->copy()->startOfMonth())
-    ->where('product_id', $product->id)->sum('target_qty');
+Goal: prove that for every resource, in every panel it is registered in, all SIX roles
+(superuser, platform_admin, accountant, hq_lead, regional_head, sales_rep) plus the
+DERIVED supervisor case (a sales_rep named as Position.supervisor_id) get exactly the
+intended visibility (scopeVisibleTo / scopeVisibleOrgTo / ScopesToTerritory /
+ScopesToPosition), write access (Policy), and panel entry (canAccessPanel).
 
-$actualYtd = DistributionLine::whereHas('distribution', fn ($q) => $q
-        ->where('user_id', $rep->id)->where('status', 'posted')
-        ->whereBetween('invoice_date', [$cycle->starts_on, $asOf]))
-    ->where('product_id', $product->id)->sum('quantity');
+1. Inventory every Resource class under app/Filament/{Field,Office,Management,Shared}
+   and every Policy under app/Policies. List any resource with no policy, or any policy
+   method that is missing (viewAny, view, create, update, delete, plus custom actions
+   such as post/void/send/accept/allocate).
+2. Write ONE table-driven Pest file per panel (tests/Feature/Authorization/
+   {Field,Office,Management}AuthorizationMatrixTest.php) using datasets: for each
+   (resource, role) pair assert: can/cannot load the list page; sees only the rows the
+   scope allows (seed one row in-scope and one out-of-scope); can/cannot reach create/
+   edit; custom actions are hidden/forbidden where the policy says so.
+3. Shared resources (Calls, Distributions, Deposits) must be asserted in BOTH panels
+   they register in; management must be read-only for all roles including superuser.
+4. Supervisor case: a rep supervising a position sees its CURRENT occupant's calls/
+   distributions/deposits/stock but cannot edit them; a plain rep sees only their own.
+5. Fix anything the matrix exposes. Do NOT loosen a scope to make a test pass — flag it.
 
-$attainmentPct = $targetYtd > 0 ? round($actualYtd / $targetYtd * 100, 1) : null;
-```
-Full-cycle attainment uses the same query without the `<=` month cap on targets.
-
-### 3.4 Worked examples (Cycle 2025/2026, Feb–Jan, Product X)
-Baseline **Tier 2 = 1,200/yr** (even split ⇒ 100/month).
-
-**Maternity (target 0 for May–Jul):** custom assignment, annual 0 May 1–Jul 31; Tier 2 either side.
-- Effective annual = 1,200 × 9/12 + 0 = **900**; monthly: Feb–Apr 100, May–Jul 0, Aug–Jan 100.
-- YTD end-of-Aug = 300 + 0 + 100 = **400**. Early months keep their pace; leave months are zero.
-
-**Mid-year tier change (1,200 → 1,500 effective Aug):**
-- Effective annual = 1,200 × 6/12 + 1,500 × 6/12 = **1,350**. Pre-Aug months stay at 100/mo; the bar for elapsed months is never moved retroactively.
-
-### 3.5 Optional: seasonality
-Instead of `1/12` evenly, attach a 12-month weight curve (per product or per tier, summing to 1) so the annual spreads to match real demand. Default to even split unless you have the curve.
-
----
-
-## 4. Data scoping by role
-
-Roles: **Superuser, Platform Admin, HQ Lead, Regional Head, Sales Rep, Supervisor, Accountant.**
-
-One query scope, applied in every transaction Resource's `getEloquentQuery()` plus matching Policies.
-```php
-// App\Models\Concerns\ScopesToViewer  (trait on Call, Distribution, Deposit, ...)
-public function scopeVisibleTo(Builder $q, User $user): Builder
-{
-    if ($user->hasAnyRole(['superuser', 'platform_admin', 'hq_lead'])) return $q;       // all
-    if ($user->hasRole('accountant')) return $q;                                         // all deposits (or scope by region if required)
-
-    if ($user->hasRole('regional_head')) {
-        return $q->whereIn('territory_id', Territory::where('region_id', $user->region_id)->select('id'));
-    }
-    if ($user->hasRole('supervisor')) {                                                  // rep + region read
-        $regionId = $user->currentRegionId();   // derived from their open position
-        return $q->whereIn('territory_id', Territory::where('region_id', $regionId)->select('id'));
-    }
-    return $q->where('user_id', $user->id);                                              // plain rep: own activity
-}
-```
-- **Supervisor = Sales Rep + region-read.** Layer `supervisor` on a normal rep (who still holds a position). Write scope stays self; read scope widens to the region.
-- Use **Policies** for write access, `visibleTo()` for visibility. Keep them separate.
-- **Panels are orthogonal to this.** `canAccessPanel()` gates *which panel a user can load*; the scope + policies gate *which rows and actions* — independent of panel. A resource shared across `field` and `management` stays correctly scoped in both.
-
----
-
-## 5. Panels & Laravel Boost
-
-### 5.1 Panel architecture
-A Filament panel is a navigation/UX context (its own URL prefix, nav, theme, and a `canAccessPanel()` entry gate). It is **not** the security boundary — that's Policies + `scopeVisibleTo()`. So you register the same resource class in every panel that needs it, and scoping/policies make it behave correctly per user.
-
-- **`field`** (Sales Rep, Supervisor) — mobile-first. Calls, Distributions, Deposits (record only), and a "my attainment" dashboard. Supervisors get region-read widgets via scope, in the same panel.
-- **`office`** (Platform Admin, Superuser, Accountant) — back office. Config/master-data + users & roles (Platform Admin/Superuser); deposits, allocations & reconciliation (Accountant); admin reports. Nav is role-tailored within the panel via policies.
-- **`management`** (HQ Lead, Regional Head) — oversight only. Leaderboards, coverage/vacancy, scoped reports, read-only drill-downs into calls/distributions/deposits. No config, no data entry.
-
-`canAccessPanel` mapping (on the User model): `field` → sales_rep|supervisor; `office` → platform_admin|accountant; `management` → hq_lead|regional_head; `superuser` → all panels (break-glass).
-
-Shared-resource examples: Distribution registered in `field` (write own) + `management` (read-only); Deposit in `field` (record) + `office` (manage/allocate); report pages/dashboards in `office` (admin, all) + `management` (scoped).
-
-### 5.2 Boost install (Sail)
-Boost is a dev-only MCP server (15+ tools: app/DB introspection, Tinker, browser logs, and a `search-docs` tool over version-matched Laravel-ecosystem docs). Its value is that the agent fetches *version-correct* syntax instead of guessing.
-```bash
-./vendor/bin/sail composer require laravel/boost --dev
-./vendor/bin/sail artisan boost:install        # detects packages, writes guidelines + MCP config
-./vendor/bin/sail artisan boost:update          # after adding/upgrading packages
+Stop and show me the inventory (resources × policies), the gaps found and fixed, and
+the matrix test output.
 ```
 
-### 5.3 WSL2 + Sail gotcha
-The MCP server is started by your editor running `php artisan boost:mcp`. Under Sail, PHP lives in the container. Either install a matching PHP on the WSL host so the MCP `command` can run `php artisan boost:mcp`, or point the MCP `command` at `docker` with args like `compose exec -T laravel.test php artisan boost:mcp` (container must be up). If Boost's tools "aren't being used," it's almost always this.
+### Phase 9B — Activity log
+```
+spatie/laravel-activitylog is installed and migrated but no model logs anything.
 
-### 5.4 Git hygiene
-`boost:install` regenerates `.mcp.json`, `CLAUDE.md`, `AGENTS.md`, `junie/` — gitignore those. **Commit** your hand-written `.ai/guidelines/*` files.
+Add LogsActivity (logFillable, logOnlyDirty, dontLogEmptyChanges, useLogName per
+domain) to: Position, PositionAssignment, Distribution (+ DistributionLine), Deposit,
+DepositAllocation, TargetAssignment (+ TargetAssignmentLine), StockDispatch,
+StockAdjustment, Territory, Team, Product, User (log role changes via a manual
+activity()->... call in the Users resource, not the model).
+product_team: the pivot model App\Models\Relations\TeamMembership — log attach/detach
+manually from the pivot events so the ≤1-strict-team changes are traceable.
+StockMovement is already an immutable ledger — do NOT double-log it.
 
-### 5.5 Project guidelines — `.ai/guidelines/project.blade.php`
-```blade
-{{-- Pharma Sales & Demand-Creation Tracker — project guidelines --}}
+Causer = auth user; when a job writes (RebuildRepMonthlyTargetsJob) log with no causer
+and a descriptive event. Add setDescriptionForEvent so entries read like
+"Position LAG-A frozen", "Distribution INV-0042 posted".
 
-## What this app is
-A field-force tracker for a Nigerian pharma company: Sales Reps' call activities,
-product distribution (invoices), and customer deposits, against a
-Region -> Territory -> Position(team) org tree, with target attainment.
+Office panel: a read-only Activity resource (platform_admin|superuser only) with
+filters by subject type, causer, date. No management/field exposure.
 
-## Non-negotiable domain rules
-- A Position is (territory, team). team.kind MUST equal territory.team_policy
-  (strict|liberal). Strict territories also enforce UNIQUE(territory,team) over
-  active positions. NEVER model strict/liberal as separate entities.
-- Products and teams are many-to-many (product_team). Teams are typed strict|liberal.
-  A product may belong to AT MOST ONE strict team, and any number of liberal teams.
-  Enforce on pivot-attach. This is what keeps the strict partition valid.
-- A distribution is created under one position and is single-team (team_id copied
-  from the position). Each line's product MUST belong to that position's team's
-  product set (RepScope::productsForPosition). This is the "can't sell the same
-  product" guard.
-- Targets are ANNUAL volumes per product, set at cycle start via tiers. A mid-cycle
-  change is a PRORATED BLEND. Materialise into rep_monthly_targets:
-  monthly target = annual_of_active_segment * (1/12). The divisor is ALWAYS 1/12
-  (full year), NEVER the span length. Re-materialise on any assignment change.
-- Transactions denormalise territory_id/team_id at write time — intentional (reorg
-  history). Do not "fix" by joining live.
-
-## Panels
-- Three panels: field (sales_rep, supervisor), office (platform_admin, accountant),
-  management (hq_lead, regional_head); superuser accesses all. Gate entry with
-  User::canAccessPanel().
-- A panel is navigation/UX only. NEVER treat it as authorization. Row/action access
-  is Policies + scopeVisibleTo(), independent of panel. Resource classes may be
-  shared across panels.
-
-## Stack conventions
-- PostgreSQL only. Partial unique indexes via DB::statement in migrations.
-- Money: decimal(18,2) Naira, Money cast. Quantities: decimal(14,2).
-- PHP enums for every status/type/kind column; back with Filament enum support.
-- Tests: Pest. Every model gets a factory; every business rule gets a feature test.
-- Filament is v5 (== v4 API on Livewire 4). When unsure of ANY Filament/Laravel
-  signature, call search-docs — do not guess.
-- RBAC: spatie/laravel-permission via Shield. Visibility via scopeVisibleTo();
-  write access via Policies. Keep them separate.
-
-## Security
-- Never expose env values, secrets, or stack traces in UI or commits.
-- Never mass-assign user_id, status, amount, or team_id from the client.
+Pest: each listed model writes an activity on create/update/delete with the right
+causer; pivot attach/detach logs; the rebuild job logs without a causer; the Activity
+resource is invisible to accountant/hq_lead/regional_head/sales_rep. Stop & confirm.
 ```
 
-### 5.6 Workflow guideline — `.ai/guidelines/workflow.blade.php`
-This is what makes each phase a self-contained, hand-cranked instruction: the agent inspects first and stops after, every time, without you repeating it.
-```blade
-## How to run a build phase
-At the START, before writing code:
-1. Read .ai/guidelines/*.
-2. Use Boost database-schema and list-models to see current state — do NOT assume
-   tables/models exist, inspect them.
-3. Run `php artisan test` and confirm green before changing anything.
-4. Restate in one line the slice you're about to build, the files you'll touch, and
-   which panel(s) the resources register in.
-
-While building:
-- Use Boost search-docs for any Filament 5 / Laravel 13 signature. Never guess.
-- Migration, then models/enums, then Filament resources (in the named panel[s]),
-  then the named Pest tests.
-
-At the END:
-1. Run `php artisan test`; all named tests must pass.
-2. Summarize the diff (files added/changed) and show test output.
-3. STOP. Do not begin the next phase. Wait for me to review and say go.
+### Phase 9C — Indexes & query performance
 ```
-Optional per-turn preamble if you want it spelled out each time: *"Continue the Pharma Tracker build. Phases 0–N are done and committed. Follow .ai/guidelines/workflow.blade.php. Today's slice: ⟨paste phase⟩."*
+Use Boost database-schema first. Existing indexes already cover: calls(user_id,
+called_at), calls(territory_id), distributions(user_id, invoice_date),
+distributions(territory_id), product_team(team_id), call_product(product_id),
+target_assignments(cycle_id, user_id, effective_from), rep_monthly_targets unique
+(cycle_id, user_id, year_month, product_id), stock_*(position_id, status),
+stock_movements(position_id, product_id). Postgres does NOT auto-index FK columns.
 
-### 5.7 Optional: Filament Blueprint
-Filament shipped **Blueprint** (premium) specifically to make AI agents produce better Filament implementation plans (correct component usage, no vague layouts). On-point if you'll lean heavily on Claude Code for Filament UI.
+One migration adding:
+- distribution_lines(product_id); distribution_lines(distribution_id, product_id)
+- distributions(status, invoice_date) and distributions(user_id, status, invoice_date)
+- deposits(territory_id), deposits(customer_id), deposits(status, deposit_date),
+  deposits(received_by_user_id)
+- deposit_allocations(deposit_id), deposit_allocations(distribution_id)
+- customers(territory_id), demand_creators(territory_id), demand_creators(demand_creator_type_id)
+- positions(supervisor_id), position_assignments(user_id, effective_from)
+- stock_movements(territory_id, created_at)
+Skip any that database-schema shows already exist.
 
----
+Then profile: run EXPLAIN ANALYZE (via Boost database-query) on the queries behind
+CompanyRollupWidget, AttainmentLeaderboardWidget, CallCoverageWidget and
+YtdAttainmentWidget against the demo dataset (Phase 9E if it exists, else factories
+at 5 regions × 4 territories × 3 positions × 12 months). Report before/after plan
+costs. Add ->with() eager loads where N+1s appear (use Boost browser-logs / query
+counts in tests).
 
-## 6. Phased build prompts
-
-Each fenced block is **one complete instruction you paste into Claude Code as a single turn.** Send them one at a time; the `stop and confirm` is your review gate — the agent builds the slice, stops, you review/test/commit, then paste the next. Boost is installed and `.ai/guidelines/*` (including `workflow.blade.php`) are in place. Standing instruction: *use Boost `search-docs` for exact Filament 5 / Laravel 13 syntax, and `database-schema` before any migration.*
-
-> You install Laravel + Filament + Sail yourself first; Phase 0 picks up from a fresh, running skeleton.
-
-### Phase 0 — Foundation, panels & conventions
-```
-We are building a Nigerian pharma field-force tracker on Laravel 13 + Filament 5
-(Livewire 4 / Tailwind 4) + PostgreSQL, tested with Pest, run via Sail. Read
-.ai/guidelines/* before doing anything and use Boost's search-docs for exact syntax.
-
-Foundation only — no domain tables yet:
-1. Install & configure spatie/laravel-permission + Filament Shield (v5-compatible).
-2. Create THREE Filament panels: field, office, management. Implement
-   User::canAccessPanel(Panel $panel): field -> sales_rep|supervisor;
-   office -> platform_admin|accountant; management -> hq_lead|regional_head;
-   superuser -> all. Make the field panel mobile-first/compact.
-3. Add Pest + pest-plugin-laravel; configure a Postgres testing connection.
-4. App-wide conventions: a Money cast, a base enum trait/helper for Filament
-   labels+colors, an empty ScopesToViewer trait stub.
-5. Bind Position/Territory/Target observers in a service provider (stubs).
-6. Add spatie/laravel-activitylog but don't log anything yet.
-
-Do NOT create domain models. Write smoke tests that each panel loads and that
-canAccessPanel gating works per role. Stop and show me the package list, the three
-panels' config, the gating, and test output.
+Pest: an assertion per widget that its query count is bounded (no N+1) using
+Illuminate\Support\Facades\DB::enableQueryLog or Pest's query-count expectations.
+Stop and show me the migration, the index list, and the before/after plans.
 ```
 
-### Phase 1 — Org hierarchy, teams (typed) & RBAC
+### Phase 9D — Integrity command
 ```
-Build the org skeleton and roles. Panel: office (admin).
+Add a console command app:verify-integrity (app/Console/Commands/VerifyIntegrity.php)
+that RE-CHECKS every invariant the app enforces at write time and reports drift.
+Read-only by default; --fix applies safe corrections; exit code 1 on any finding.
 
-Schema: regions; territories (team_policy enum strict|liberal default strict);
-teams (kind enum strict|liberal, code, active). Add region_id + is_active to users.
+Checks:
+1. Denormalised territory_id/team_id on calls, distributions, deposits,
+   stock_dispatches, stock_adjustments, stock_movements match the row's position
+   (territory via position.territory_id; team via position.team_id).
+2. Every position's team.kind == territory.team_policy; enforce_team_uniqueness ==
+   (territory.team_policy == strict); position.code == derived code.
+3. No product belongs to more than one strict team (product_team × teams.kind).
+4. No strict territory has two active positions on the same team; no position has
+   two open assignments (defence in depth over the partial indexes).
+5. Every distribution_line's product is in its distribution's team's product set;
+   line_amount == quantity * unit_price; header total == SUM(lines).
+6. Every deposit's status matches its allocations (unreconciled / partially /
+   reconciled); no deposit is over-allocated.
+7. rep_monthly_targets: for every (rep, cycle) with assignments, a dry-run
+   TargetMaterializer produces the same rows as stored (report diffs; --fix rebuilds).
+8. position_product_stocks.quantity == SUM(stock_movements.quantity_delta) per
+   (position, product); list negative balances.
 
-Roles (Shield): superuser, platform_admin, hq_lead, regional_head, sales_rep,
-supervisor, accountant. Seed sensible permission sets; Superuser bypasses via
-Gate::before.
+Output a table per check with counts; verbose lists ids. Schedule it daily in
+routes/console.php (report only) and log findings.
 
-Filament (register in the office panel, policy-gated to platform_admin/superuser):
-Region, Territory, Team, Users resources. Territory form exposes team_policy with a
-helper note; Team form exposes kind. Users resource assigns roles and, for
-regional_head, a region.
-
-Implement ScopesToViewer::scopeVisibleTo() per §4 and unit-test each tier. Factories
-+ Pest tests for every model and role gating. Stop and show me the resources, scope, tests.
-```
-
-### Phase 2 — Positions & assignments (the strict/liberal core)
-```
-Architectural core — read §2. Panel: office (admin).
-
-Schema: positions (territory_id, team_id, code, label, enforce_team_uniqueness,
-status); position_assignments (position_id, user_id, effective_from, effective_to
-nullable, status, notes).
-
-Constraints via DB::statement:
-- partial unique positions(territory_id, team_id) WHERE enforce_team_uniqueness AND status='active'
-- partial unique position_assignments(position_id) WHERE effective_to IS NULL
-
-PositionObserver sets enforce_team_uniqueness from territory.team_policy on saving;
-TerritoryObserver re-syncs children on policy change.
-Validation on the position: (a) team.kind MUST equal territory.team_policy;
-(b) strict territories reject a 2nd active position for the same team.
-Filament team picker filtered to teams whose kind == the territory's team_policy.
-Add RepScope::invoiceablePositions() (productsForPosition comes in Phase 5).
-
-Filament (office panel): Positions resource + Assignments relation manager (assign a
-rep; end via effective_to). Show occupant + a VACANT badge.
-
-Pest (MUST pass): strict rejects 2nd active position for same team (DB + rule);
-liberal allows it; position rejects a team whose kind != territory policy (both
-directions); one open assignment per position; invoiceablePositions returns the
-rep's active positions in a territory. Stop and show me migration, observers, rules,
-filtered picker, tests green.
+Pest: one test per check that seeds a violation via raw DB writes (bypass the model
+guards) and asserts the command reports it and, where --fix is supported, repairs it.
+Stop & confirm.
 ```
 
-### Phase 3 — Master data (incl. product↔team membership)
+### Phase 9E — Demo / UAT dataset
 ```
-Panel: office (admin) for full CRUD. Customers and demand_creators are also
-REFERENCED (via selects) from the field panel's Call/Distribution forms in later
-phases — they don't need a field CRUD resource.
+DatabaseSeeder currently runs Roles, DemoUsers, DemandCreatorTypes, Regions,
+Territories, Positions and has MasterDataSeeder commented out. Finish the demo
+dataset for UAT; keep every seeder idempotent (firstOrCreate keyed on natural keys).
 
-Schema: products (name, sku, pack_size, unit_price nullable, active) — NO team_id;
-product_team pivot (product_id, team_id); customers (territory_id, name, type,
-address, phone); demand_creator_types (lookup, seed the 6 types); demand_creators
-(type_id, territory_id, name, affiliation, phone, address).
+IMPORTANT: DatabaseSeeder uses WithoutModelEvents, so observers do NOT fire.
+Either drop that trait, or have the seeders call PositionObserver-equivalent code
+paths and TargetMaterializer::rebuild() explicitly. Prefer dropping the trait and
+seeding through the models so the seed exercises the same guards as production.
 
-Product↔team is many-to-many. Enforce on attach: a product may belong to AT MOST ONE
-strict team, and any number of liberal teams (§2.0); surface as a clean Filament
-error.
+Add / enable:
+1. MasterDataSeeder (uncomment): products AA–FF, strict Teams A/B, liberal C/D.
+2. CustomerSeeder + DemandCreatorSeeder: 3–6 per territory, realistic Nigerian names/
+   addresses, created_by = the territory's rep.
+3. CycleSeeder: current cycle (starts 1 Feb, ends 31 Jan, is_current) + previous.
+4. TargetSeeder: Tier 1/2/3 with annual volumes per product; one tier assignment per
+   rep from cycle start; ONE rep with a maternity custom assignment (0 for May–Jul)
+   and ONE with a mid-cycle tier change effective Aug (the §3.4 examples); then
+   materialise.
+5. ActivitySeeder: 8 months of calls (physical/phone mix, products detailed),
+   posted distributions that land reps at ~60–130% attainment, a few drafts and one
+   void, deposits with a mix of unreconciled / partial / reconciled allocations.
+6. StockSeeder: one accepted dispatch per active position, one draft dispatch, one
+   posted adjustment (damage), so field My Stock and Office stock views are populated.
+7. DemoUsersSeeder: ensure at least one user per role, one rep who is also a
+   supervisor of two positions, and one vacant position.
 
-Filament (office panel): Products resource with a teams multi-select (group/badge by
-kind) + the ≤1-strict-team rule; resources for customers, demand_creator_types,
-demand_creators. Seeders with realistic Nigerian data (build the AA–FF / Team A–D
-example) + factories + tests.
+Provide `sail artisan db:seed --class=DemoSeeder` as the single entry point and
+document the demo logins in the seeder's docblock (never real credentials).
 
-Pest: a product can join multiple teams; a product is rejected from a 2nd strict
-team; a product may join multiple liberal teams. Stop and confirm.
-```
-
-### Phase 4 — Call activities
-```
-Panels: field (reps create/see own) and management (read-only, scoped drill-down).
-
-Schema: calls (user_id, position_id, territory_id [denormalised], demand_creator_id,
-call_type enum physical_visit|phone_call, called_at, latitude/longitude nullable,
-notes) + call_product pivot.
-
-On create, derive territory_id from the rep's active position (block if none). Apply
-ScopesToViewer.
-
-Filament: Calls resource registered in BOTH panels. In field, reps log their own
-(user_id forced to auth user, never client-set); demand-creator and product selects
-scoped to the rep's territory. In management, read-only and scoped to region/all.
-
-Pest: rep only creates/sees own; supervisor/regional head sees region read-only;
-territory derived not client-set; management registration is read-only. Stop and confirm.
+Pest: DemoSeeder runs clean twice (idempotent); post-seed counts; the two target
+worked-examples produce the expected rep_monthly_targets. Stop & confirm.
 ```
 
-### Phase 5 — Distributions (invoices) + product guard
+### Phase 9F — CI
 ```
-Panels: field (reps create/see own) and management (read-only, scoped).
+Add .github/workflows/ci.yml:
+- Trigger: push to main + pull_request.
+- Services: postgres:16 with a `testing` database matching phpunit.xml.
+- Steps: PHP 8.5 (shivammathur/setup-php with pgsql, intl, bcmath), composer install
+  (cached), copy .env.example, key:generate, migrate, `vendor/bin/pint --test`,
+  `php artisan test --compact --parallel`.
+- Node build only if a resources/js or css change is in the diff (path filter).
+Also add a `composer test` script and a `composer lint` script if missing, and a
+pre-commit hint in README (no hooks committed).
 
-Schema: distributions (user_id, position_id, territory_id, team_id, customer_id,
-invoice_number, invoice_date, total_amount, status enum draft|posted|void, notes)
-+ distribution_lines (distribution_id, product_id, quantity, unit_price, line_amount).
-
-Rules:
-- Created under ONE of the rep's active positions (RepScope::invoiceablePositions);
-  team_id copied from that position; single-team.
-- Each line's product MUST belong to that position's team's product set
-  (RepScope::productsForPosition). Reject otherwise — the "can't distribute the same
-  product" guard; holds in strict, passes in liberal.
-- line_amount = quantity * unit_price; total_amount = sum of lines (recompute server
-  side, never trust client). customer must belong to the territory.
-- only 'posted' counts toward attainment; 'void' excluded.
-
-Filament: Distributions resource in field (position select filtered to invoiceable
-positions; line product select filtered to that position's team's products; posted
-total shown) and management (read-only, scoped). Apply ScopesToViewer.
-
-Pest (critical): strict rep blocked from a product outside their position's team;
-liberal rep allowed across their liberal team's products; totals recomputed server
-side; void excluded from a sample attainment sum. Stop and show me the guard + tests green.
+Verify the workflow runs green on a PR before merging. Stop & confirm with the run URL.
 ```
 
-### Phase 6 — Deposits & reconciliation
+### Phase 10 — Stock: close the loop
 ```
-Panels: field (reps record a deposit they collected) and office (Accountant manages,
-allocates, reconciles). Reconciliation status also surfaces read-only on the
-management dashboard (Phase 8).
+The stock module exists (dispatch -> accept -> ledger -> balance; adjustments) but
+a posted distribution does not touch stock, balances can go negative unbounded, and
+nothing surfaces on dashboards. Read app/Services/StockLedger.php and
+app/Models/StockMovement.php first — StockLedger::record() stays the ONLY writer.
 
-Schema: deposits (customer_id, territory_id, received_by_user_id, amount,
-deposit_date, reference, bank, channel, status enum unreconciled|
-partially_reconciled|reconciled|disputed, notes) + deposit_allocations (deposit_id,
-distribution_id nullable, amount, allocated_by_user_id, allocated_at).
+DECISION REQUIRED BEFORE BUILDING (ask me if not stated in this prompt):
+  (a) posting a distribution with insufficient stock is BLOCKED, or
+  (b) it is ALLOWED and the balance goes negative, flagged on dashboards.
+Default to (b) with a clear warning, as the ledger already permits negatives.
 
-Deposits are bulk and NOT required to tie to an invoice. Allocations reconcile a
-deposit against posted distributions; status derives from allocated vs amount.
+1. Add StockMovementType::Sale (and ::SaleReversal). On Distribution posting, write
+   one movement per line: quantity_delta = -quantity, source = the DistributionLine,
+   caused_by = the posting user, position/territory/team from the distribution.
+   On voiding a POSTED distribution, write the reversal. Draft/void transitions that
+   never posted write nothing. Wrap posting + movements in one DB transaction.
+2. If (a): Distribution post action validates each line against
+   position_product_stocks and fails with a per-product message.
+3. Field panel: "My stock" summary widget on the dashboard (on-hand per product for
+   the rep's active positions, negative in red); StockLevels resource gets a
+   movements drill-down (ledger rows for a product, read-only).
+4. Office panel: StockOnHandWidget (position × product grid, filter by territory/team,
+   negative balances first) + a NegativeBalancesWidget for platform_admin; CSV
+   exporter for stock levels and for movements (date range).
+5. Management panel: read-only StockLevels resource scoped by scopeVisibleOrgTo
+   (regional_head sees their region's positions); a StockCoverageWidget (on-hand vs
+   last-3-months average sales per product per territory = weeks of cover).
+6. Integrity: extend Phase 9D check 8 to include Sale movements; the materialised
+   balance must still equal SUM(quantity_delta).
 
-Roles: Accountant owns management + reconciliation. Reps may record a deposit they
-collected (field). Only Accountant/Admin allocate or mark disputed (office). Apply
-ScopesToViewer.
-
-Filament: Deposits resource in field (record only) and office (full manage +
-Allocations relation manager + a reconciliation view of unreconciled deposits and
-remaining balance). Factories + Pest: status transitions; allocation never exceeds
-deposit amount; role gating; field is record-only. Stop & confirm.
-```
-
-### Phase 7 — Targets engine (annual, prorated)
-```
-Read §3 — targets are ANNUAL volumes, mid-cycle changes are a PRORATED BLEND.
-Panel: office (admin manages cycles/tiers/assignments). Attainment surfaces as
-widgets in field (my targets) and management (team attainment) in Phase 8.
-
-Schema: cycles (name, starts_on, ends_on, is_current); target_tiers;
-target_tier_lines (tier_id, product_id, annual_volume); target_assignments (cycle_id,
-user_id, position_id nullable, target_tier_id nullable, basis enum tier|custom,
-effective_from, effective_to nullable, reason enum, notes); target_assignment_lines
-(assignment_id, product_id, annual_volume); rep_monthly_targets (cycle_id, user_id,
-year_month, product_id, target_qty) UNIQUE(cycle,user,year_month,product).
-
-Services:
-- TargetMaterializer::rebuild(rep, cycle): for each month M, find the assignment
-  active on the 1st of M, resolve per-product annual_volume (custom ->
-  assignment_lines; tier -> tier_lines, overridden per-product by assignment_lines),
-  write target_qty = annual * (1/12). Divisor is ALWAYS 1/12 (full year), NEVER the
-  span length.
-- AttainmentService: targetYtd, actualYtd (posted distribution_lines), pct, plus
-  full-cycle figures, per product and aggregated.
-TargetAssignmentObserver queues a rebuild on any create/update/delete.
-
-Filament (office panel): Cycles, Target Tiers (+annual lines), Target Assignments
-(pick a rep, a tier OR custom annual lines, an effective range, a reason).
-
-Pest (build the §3.4 examples exactly): Tier 2 = 1200/yr; maternity 0/yr May–Jul;
-resumes Aug -> effective annual 900, YTD end-of-Aug 400. Tier change 1200 -> 1500
-effective Aug -> effective annual 1350; pre-Aug months stay at 100/mo. Stop and show
-me the materializer, attainment service, both tests green.
+Pest: posting decrements the right position's balance per line; voiding a posted
+distribution restores it; voiding a draft writes no movement; (a) or (b) behaviour per
+the decision; every new widget/resource returns only rows the viewer may see, in the
+right panel; the exporter respects scope. Stop & confirm.
 ```
 
-### Phase 8 — Dashboards & reports (per panel)
+### Phase 11 — AI narrative brief on the management dashboard (optional)
 ```
-Role-scoped dashboards/widgets; all reads go through ScopesToViewer.
+Only after Phases 9A–9F are merged and green. Adds a Claude-generated "weekly brief"
+to the management panel. AI is read-only: it narrates numbers the widgets already
+compute, never writes to any domain table, never bypasses a scope.
 
-field panel (Rep): my YTD attainment per product (vs materialised target), my call
-count by type this month, recent distributions, outstanding deposits.
-management panel (HQ Lead / Regional Head): region/company leaderboard (attainment
-%), call coverage by territory, vacant positions, strict coverage gaps, deposit
-reconciliation status, read-only drill-downs.
-office panel (Platform Admin): company roll-up by region->territory->team, top/bottom
-reps, distribution-value trend; (Accountant): unreconciled deposits, reconciliation
-aging.
+Dependency: anthropic-ai/sdk (composer) — ask before adding. ANTHROPIC_API_KEY in
+.env only. Bind Anthropic\Client in a service provider so tests can swap a fake.
+Use the latest Claude model id from the claude-api skill; do not hard-code a guess.
 
-Add exportable CSV reports for the same cuts. Keep queries indexed; prefer SUMs over
-rep_monthly_targets. Include the §2.5 vacancy/coverage queries as widgets. Pest: each
-widget returns only data the viewer may see, in the right panel. Stop & confirm.
-```
-
-### Phase 9 — Hardening
-```
-Final pass, no new features:
-1. Policies for every resource; audit that visibility (scopeVisibleTo), write
-   (Policy), AND canAccessPanel gating are all enforced and tested for all 7 roles
-   across the three panels. Verify shared resources behave correctly in each panel.
-2. spatie/laravel-activitylog on positions, assignments, product_team changes,
-   distributions, deposits, target_assignments.
-3. Performance: composite indexes for hot paths (distribution_lines(product_id) +
-   distributions(user_id, invoice_date, status); calls(user_id, called_at);
-   rep_monthly_targets(cycle_id, user_id, year_month); product_team(team_id)).
-   Profile the heaviest dashboard query and tune.
-4. Data integrity: confirm denormalised territory_id/team_id are written via
-   observers/mutators, never the client; add a console command to re-verify them and
-   re-check the ≤1-strict-team invariant.
-5. Seed a realistic demo dataset (regions, strict + liberal territories, AA–FF /
-   Team A–D catalog, positions, reps, a full cycle of annual targets with one
-   maternity adjustment, calls, distributions, deposits) for UAT.
-6. Raise Pest coverage on business rules to near-100%; wire CI.
-Stop and give me a coverage summary + the index list + the integrity command.
-```
-
-### Phase 10 — AI narrative summaries on the management dashboard (nice-to-have)
-```
-Optional; only after Phase 9. Adds a Claude-generated "weekly brief" to the management
-panel. AI is read-only here: it narrates numbers the widgets already compute, it never
-writes to any table or bypasses a scope.
-
-Dependency: anthropic-ai/sdk (composer). ANTHROPIC_API_KEY in .env, never in code.
-Bind Anthropic\Client in a service provider so tests can swap in a fake.
-
-1. Migration: dashboard_briefs (id, scope_type enum company|region, scope_id nullable
+1. Migration: dashboard_briefs (scope_type enum company|region, scope_id nullable
    region_id, period_start date, period_end date, body text, input_snapshot jsonb,
    model string, generated_at). UNIQUE(scope_type, scope_id, period_start).
-2. Service app/Services/Ai/DashboardBriefService: builds the input payload ONLY from
-   the same aggregate queries the Phase 8 widgets use (attainment leaderboard, call
-   coverage, strict coverage gaps, reconciliation status), scoped by region for a
-   regional brief and company-wide for HQ. Send aggregates, never raw rows; pseudonymise
-   reps/customers to ids if the client requires it. Persist the payload in
-   input_snapshot so a brief is reproducible. Stable system prompt with prompt caching;
-   structured output (headline + 3–6 bullets + list of flagged territories/positions).
-3. Job GenerateDashboardBriefJob (queued) + scheduled weekly (Monday 06:00 WAT) for the
-   company and for every region. Failures are logged and leave the previous brief in
-   place — a missing brief must never break the dashboard.
-4. Widget DashboardBriefWidget in the management panel: hq_lead sees the company brief,
-   regional_head sees their region's brief (resolve via users.region_id, same rule as
-   scopeVisibleOrgTo). Show generated_at and a "regenerate" action gated to hq_lead.
-5. Pest (fake the Anthropic client — assert on the payload sent, not on model output):
-   regional payload contains only that region's territories; hq payload is company-wide;
-   a job failure preserves the previous brief; widget renders the correct brief per
-   role and nothing for sales_rep/supervisor.
+2. app/Services/Ai/DashboardBriefService: builds the payload ONLY from the same
+   aggregate queries the management widgets use (AttainmentLeaderboard, CallCoverage,
+   StrictCoverageGaps, VacantPositions, ReconciliationStatus, and Phase 10
+   StockCoverage), scoped by region for a regional brief, company-wide for HQ.
+   Aggregates only — never raw rows; pseudonymise reps/customers to ids. Persist the
+   payload in input_snapshot. Stable system prompt with prompt caching; structured
+   output: headline + 3–6 bullets + flagged territories/positions.
+3. GenerateDashboardBriefJob (queued), scheduled Monday 06:00 Africa/Lagos for the
+   company and every region. Failure logs and leaves the previous brief in place — a
+   missing brief must never break the dashboard.
+4. DashboardBriefWidget in management: hq_lead sees the company brief, regional_head
+   their region's (users.region_id, same rule as scopeVisibleOrgTo). Show generated_at
+   and a "regenerate" action gated to hq_lead.
+5. Pest (fake the client; assert on the payload sent, not model output): regional
+   payload contains only that region's territories; hq payload is company-wide; a job
+   failure preserves the previous brief; widget renders the right brief per role and
+   nothing for sales_rep (supervisor or not).
 Stop & confirm.
 ```
 
 ---
 
-## 7. Sequencing notes
-- Phases 0–3 are the spine. Phase 0 stands up the three panels + `canAccessPanel`; everything after registers resources into the right panel(s). The strict guarantee spans Phase 2 (kind-match + `UNIQUE(territory,team)`) **and** Phase 3 (the ≤1-strict-team rule) — both must be in place before Phase 5's distribution guard can rely on it.
-- 4/5/6 are independent of each other once 3 exists; parallelise if you have help.
-- 7 depends on 3 (products) and 5 (posted distributions for actuals).
-- 10 is optional and strictly after 9: it reads the Phase 8 widget aggregates and relies on the Phase 9 scope audit being green before any data leaves the app.
-- Treat each "stop and confirm" as a real gate: review the migration and the named tests before moving on. That review loop is the single biggest lever on output quality with an AI agent.
+## 3. Sequencing
+
+- **9A first.** It is the audit everything else leans on; any scope bug found there changes what 9B logs and what 9E seeds.
+- **9B, 9C, 9D are independent** once 9A is merged. 9D's check 7 (materialiser dry-run) and check 8 (stock balance) are the two that catch real drift — don't skip them.
+- **9E before 9C's profiling step** if you want realistic plans; otherwise 9C can use factories and 9E can come later.
+- **9F whenever** — earliest is best; it only needs the suite to be green.
+- **10 after 9A and 9D** (it extends the integrity check and the authorization matrix must already cover stock resources). The block-vs-negative decision is yours; the prompt defaults to negative-with-warning.
+- **11 strictly last** and only if wanted.
+- Treat every "stop and confirm" as a real gate: review the migration and the named tests before saying go.
+
+## 4. Small cleanups (fold into whichever phase touches the file)
+
+- `ManagementPanelProvider` still registers Filament's `AccountWidget` and `FilamentInfoWidget`; drop them.
+- `OfficePanelProvider` discovers `app/Filament/Pages`, which does not exist; point it at an Office pages directory or remove the call.
+- `tests/Feature/ExampleTest.php` and `tests/Unit/ExampleTest.php` are scaffold placeholders; delete once 9F's CI is green (ask before deleting tests).
+- `DatabaseSeeder` — see 9E; decide whether `WithoutModelEvents` stays.

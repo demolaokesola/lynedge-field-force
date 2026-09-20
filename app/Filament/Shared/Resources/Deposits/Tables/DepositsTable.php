@@ -4,6 +4,7 @@ namespace App\Filament\Shared\Resources\Deposits\Tables;
 
 use App\Enums\DepositStatus;
 use App\Models\Deposit;
+use App\Support\Money;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -31,10 +32,11 @@ class DepositsTable
                     ->sortable(),
                 TextColumn::make('amount')
                     ->label('Amount (₦)')
+                    ->formatStateUsing(fn (?Money $state): ?string => $state === null ? null : number_format((float) $state->amount, 2))
                     ->sortable(),
                 TextColumn::make('remaining_balance')
                     ->label('Balance (₦)')
-                    ->state(fn (Deposit $record): string => $record->remainingBalance()->format()),
+                    ->state(fn (Deposit $record): string => number_format((float) $record->remainingBalance()->amount, 2)),
                 TextColumn::make('channel')
                     ->badge()
                     ->toggleable(isToggledHiddenByDefault: true),

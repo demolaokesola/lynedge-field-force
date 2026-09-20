@@ -148,6 +148,31 @@ test('a sales_rep sees only their own distributions in the list', function (): v
         ->assertCanNotSeeTableRecords([$foreign]);
 });
 
+test('the Rep column is hidden from a plain rep but shown to a supervising rep', function (): void {
+    Distribution::factory()->by($this->rep)->forPosition($this->position)->create();
+
+    // A plain rep only ever sees their own rows, so the column is noise.
+    livewire(ListDistributions::class)
+        ->assertTableColumnHidden('user.name');
+
+    // Supervising a position (Position.supervisor_id, not a role) surfaces others' rows.
+    Position::factory()->create([
+        'territory_id' => $this->territory->id,
+        'supervisor_id' => $this->rep->id,
+    ]);
+
+    livewire(ListDistributions::class)
+        ->assertTableColumnVisible('user.name');
+});
+
+test('the total column is rendered with thousand separators', function (): void {
+    $distribution = Distribution::factory()->by($this->rep)->forPosition($this->position)->create();
+    $distribution->forceFill(['total_amount' => '1234567.5'])->save();
+
+    livewire(ListDistributions::class)
+        ->assertTableColumnFormattedStateSet('total_amount', '1,234,567.50', $distribution);
+});
+
 test('sales_rep may create; management roles may not', function (): void {
     expect($this->rep->can('create', Distribution::class))->toBeTrue();
 

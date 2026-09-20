@@ -4,6 +4,7 @@ namespace App\Filament\Shared\Resources\Distributions\Tables;
 
 use App\Enums\DistributionStatus;
 use App\Models\Distribution;
+use App\Support\Money;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -34,12 +35,19 @@ class DistributionsTable
                 TextColumn::make('status')
                     ->badge()
                     ->sortable(),
+                // Money cast yields a Money object, which ->numeric() skips (not is_numeric),
+                // so format the raw amount ourselves; the symbol lives in the header.
                 TextColumn::make('total_amount')
                     ->label('Total (₦)')
+                    ->formatStateUsing(fn (?Money $state): ?string => $state === null ? null : number_format((float) $state->amount, 2))
+                    ->alignRight()
                     ->sortable(),
+                // A plain rep only ever sees their own rows (ScopesToViewer), so the Rep
+                // column is noise for them; supervisors and management roles see others' rows.
                 TextColumn::make('user.name')
                     ->label('Rep')
-                    ->sortable(),
+                    ->sortable()
+                    ->hidden(fn (): bool => auth()->user()->hasRole('sales_rep') && ! auth()->user()->isSupervisor()),
             ])
             ->filters([
                 SelectFilter::make('status')

@@ -1,6 +1,7 @@
 <?php
 
 use App\Filament\Office\Resources\TargetTiers\Pages\TierVolumesGrid;
+use App\Filament\Office\Resources\TargetTiers\TargetTierResource;
 use App\Jobs\RebuildRepMonthlyTargetsJob;
 use App\Models\Cycle;
 use App\Models\Product;
@@ -46,7 +47,8 @@ test('editing a cell and saving persists the new value', function (): void {
             'volumes' => [$rowKey => ["tier_{$tier->id}" => '1500']],
         ])
         ->call('save')
-        ->assertHasNoFormErrors();
+        ->assertHasNoFormErrors()
+        ->assertRedirect(TargetTierResource::getUrl('index'));
 
     $this->assertDatabaseHas('target_tier_lines', [
         'target_tier_id' => $tier->id,

@@ -113,12 +113,12 @@ class TierVolumesGrid extends Page
             $this->rebuildAffectedTargets($changedTierIds);
         }
 
-        $this->form->fill(['volumes' => $this->buildVolumesState()]);
-
         Notification::make()
             ->title('Volumes saved')
             ->success()
             ->send();
+
+        $this->redirect(TargetTierResource::getUrl('index'));
     }
 
     /**

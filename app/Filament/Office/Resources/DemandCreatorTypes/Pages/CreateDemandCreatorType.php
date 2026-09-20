@@ -8,4 +8,9 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateDemandCreatorType extends CreateRecord
 {
     protected static string $resource = DemandCreatorTypeResource::class;
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
 }

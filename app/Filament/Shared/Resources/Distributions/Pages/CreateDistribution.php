@@ -85,4 +85,9 @@ class CreateDistribution extends CreateRecord
 
         return $position;
     }
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
 }

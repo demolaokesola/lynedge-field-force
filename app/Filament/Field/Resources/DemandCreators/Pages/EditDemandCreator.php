@@ -8,4 +8,9 @@ use Filament\Resources\Pages\EditRecord;
 class EditDemandCreator extends EditRecord
 {
     protected static string $resource = DemandCreatorResource::class;
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
 }

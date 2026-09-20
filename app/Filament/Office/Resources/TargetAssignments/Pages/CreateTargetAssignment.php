@@ -8,4 +8,9 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateTargetAssignment extends CreateRecord
 {
     protected static string $resource = TargetAssignmentResource::class;
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
 }

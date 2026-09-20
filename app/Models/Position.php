@@ -98,7 +98,7 @@ class Position extends Model
      */
     public function scopeVisibleOrgTo(Builder $query, User $user): Builder
     {
-        if ($user->hasAnyRole(['superuser', 'platform_admin', 'hq_lead', 'accountant'])) {
+        if ($user->hasAnyRole(['superuser', 'platform_admin', 'hq_lead'])) {
             return $query;
         }
 

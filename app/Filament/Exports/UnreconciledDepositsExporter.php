@@ -20,7 +20,8 @@ class UnreconciledDepositsExporter extends Exporter
             ExportColumn::make('amount')->label('Amount (₦)'),
             ExportColumn::make('status')->label('Status'),
             ExportColumn::make('reference')->label('Bank Ref'),
-            ExportColumn::make('bank')->label('Bank'),
+            ExportColumn::make('bankAccount.bank_name')->label('Bank'),
+            ExportColumn::make('bankAccount.account_number')->label('Account Number'),
         ];
     }
 

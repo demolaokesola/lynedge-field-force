@@ -3,7 +3,9 @@
 namespace App\Filament\Shared\Resources\Deposits\Schemas;
 
 use App\Enums\DepositChannel;
+use App\Models\BankAccount;
 use App\Models\Customer;
+use App\Models\Deposit;
 use App\Models\User;
 use App\Services\RepScope;
 use Filament\Forms\Components\DatePicker;
@@ -11,6 +13,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
+use Illuminate\Database\Eloquent\Builder;
 
 class DepositForm
 {
@@ -35,8 +38,12 @@ class DepositForm
                     ->native(false),
                 TextInput::make('reference')
                     ->maxLength(255),
-                TextInput::make('bank')
-                    ->maxLength(255),
+                Select::make('bank_account_id')
+                    ->label('Bank Account')
+                    ->options(fn (?Deposit $record): array => static::bankAccountOptions($record))
+                    ->required()
+                    ->searchable()
+                    ->native(false),
                 Select::make('channel')
                     ->options(DepositChannel::class)
                     ->native(false),
@@ -78,6 +85,31 @@ class DepositForm
         }
 
         return $query->pluck('name', 'id')->all();
+    }
+
+    /**
+     * Active company bank accounts, plus the account already linked to the record being
+     * edited so a deposit on a since-deactivated account still hydrates and saves.
+     *
+     * @return array<int, string>
+     */
+    public static function bankAccountOptions(?Deposit $record = null): array
+    {
+        $currentId = $record?->bank_account_id;
+
+        return BankAccount::query()
+            ->where(function (Builder $query) use ($currentId): void {
+                $query->active();
+
+                if ($currentId !== null) {
+                    $query->orWhere('id', $currentId);
+                }
+            })
+            ->orderBy('bank_name')
+            ->orderBy('account_number')
+            ->get()
+            ->mapWithKeys(fn (BankAccount $account): array => [$account->id => $account->label])
+            ->all();
     }
 
     /**

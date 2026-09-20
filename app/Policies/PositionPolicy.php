@@ -16,12 +16,12 @@ class PositionPolicy
 {
     public function viewAny(User $user): bool
     {
-        return true;
+        return $user->hasRole('platform_admin');
     }
 
     public function view(User $user, Position $position): bool
     {
-        return true;
+        return $user->hasRole('platform_admin');
     }
 
     public function create(User $user): bool

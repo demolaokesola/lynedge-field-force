@@ -19,7 +19,7 @@
 | Master data | products, product_team pivot (`TeamMembership` pivot model enforces ≤1 strict team), customers, demand_creator_types (seeded), demand_creators; `ScopesToTerritory` on Customer/DemandCreator; `created_by` on both | `app/Models/Relations/TeamMembership.php`, `app/Models/Concerns/ScopesToTerritory.php` |
 | Calls | calls + call_product; territory derived from active position; `ScopesToViewer`; shared resource registered in field (write own) + management (read-only) | `app/Filament/Shared/Resources/Calls` |
 | Distributions | distributions + lines; created under one invoiceable position, `team_id` copied; product-team guard (`RepScope::productsForPosition`); **unit_price authoritative from product**; totals recomputed server-side; Draft → Posted (submit action) → Void | `app/Filament/Shared/Resources/Distributions`, `app/Services/RepScope.php` |
-| Deposits | deposits + deposit_allocations; status derived from allocated vs amount; allocation ≤ amount; field (record) + office (manage/allocate) | `app/Filament/Shared/Resources/Deposits` |
+| Deposits | deposits only; one-to-one reconciliation against a bank-statement entry (reconciled_at/by, statement_date/reference on the row); status unreconciled / reconciled / disputed (only an unreconciled deposit can be disputed; disputing requires a `dispute_reason`, shown to the rep on the View page); field (record + read-only view) + office (manage/reconcile, Bank Reconciliation page) | `app/Filament/Shared/Resources/Deposits` |
 | Targets | cycles, target_tiers, target_tier_lines, target_assignments, target_assignment_lines, rep_monthly_targets; `TargetMaterializer` (1/12 divisor, mid-month fix landed), `AttainmentService`, `TargetAssignmentObserver` → `RebuildRepMonthlyTargetsJob`; Office resources incl. a **products × tiers volume grid** (`TierVolumesGrid`, native table-Repeater) | `app/Services/TargetMaterializer.php`, `app/Services/AttainmentService.php`, `app/Filament/Office/Resources/TargetTiers` |
 | Dashboards & exports | Field: YTD attainment, rep performance overview, call summary, recent distributions, outstanding deposits, stale customers, no-position / no-cycle / supervisor-scope notices. Management: attainment leaderboard, call coverage, vacant positions, strict coverage gaps, reconciliation status. Office: company roll-up, top/bottom reps, distribution trend, unreconciled deposits, reconciliation aging. CSV exporters for six cuts | `app/Filament/{Field,Management}/Widgets`, `app/Filament/Widgets`, `app/Filament/Exports` |
 | Tests | 53 Pest files across Calls, Customers, Dashboards, DemandCreators, Deposits, Distributions, MasterData, Org, Panels, Products, Stock, Targets | `tests/Feature/*` |
@@ -129,7 +129,7 @@ One migration adding:
 - distributions(status, invoice_date) and distributions(user_id, status, invoice_date)
 - deposits(territory_id), deposits(customer_id), deposits(status, deposit_date),
   deposits(received_by_user_id)
-- deposit_allocations(deposit_id), deposit_allocations(distribution_id)
+- deposits(bank_account_id, status)
 - customers(territory_id), demand_creators(territory_id), demand_creators(demand_creator_type_id)
 - positions(supervisor_id), position_assignments(user_id, effective_from)
 - stock_movements(territory_id, created_at)
@@ -164,8 +164,8 @@ Checks:
    two open assignments (defence in depth over the partial indexes).
 5. Every distribution_line's product is in its distribution's team's product set;
    line_amount == quantity * unit_price; header total == SUM(lines).
-6. Every deposit's status matches its allocations (unreconciled / partially /
-   reconciled); no deposit is over-allocated.
+6. Every reconciled deposit carries reconciled_at, reconciled_by_user_id and
+   statement_date; every unreconciled deposit carries none of them.
 7. rep_monthly_targets: for every (rep, cycle) with assignments, a dry-run
    TargetMaterializer produces the same rows as stored (report diffs; --fix rebuilds).
 8. position_product_stocks.quantity == SUM(stock_movements.quantity_delta) per
@@ -201,7 +201,7 @@ Add / enable:
    materialise.
 5. ActivitySeeder: 8 months of calls (physical/phone mix, products detailed),
    posted distributions that land reps at ~60–130% attainment, a few drafts and one
-   void, deposits with a mix of unreconciled / partial / reconciled allocations.
+   void, deposits with a mix of unreconciled / reconciled / disputed statuses.
 6. StockSeeder: one accepted dispatch per active position, one draft dispatch, one
    posted adjustment (damage), so field My Stock and Office stock views are populated.
 7. DemoUsersSeeder: ensure at least one user per role, one rep who is also a

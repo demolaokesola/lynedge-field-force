@@ -2,14 +2,12 @@
 
 namespace App\Filament\Widgets;
 
-use App\Enums\DepositStatus;
 use App\Filament\Exports\UnreconciledDepositsExporter;
 use App\Models\Deposit;
 use App\Support\Money;
 use Filament\Actions\ExportAction;
 use Filament\Actions\Exports\Enums\ExportFormat;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
 use Illuminate\Database\Eloquent\Builder;
@@ -54,16 +52,12 @@ class UnreconciledDepositsWidget extends BaseWidget
                 TextColumn::make('status')
                     ->badge()
                     ->sortable(),
+                TextColumn::make('bankAccount.bank_name')
+                    ->label('Bank Account')
+                    ->description(fn (Deposit $record): ?string => $record->bankAccount?->account_number),
                 TextColumn::make('reference')
                     ->label('Bank Ref')
                     ->searchable(),
-            ])
-            ->filters([
-                SelectFilter::make('status')
-                    ->options([
-                        DepositStatus::Unreconciled->value => 'Unreconciled',
-                        DepositStatus::PartiallyReconciled->value => 'Partially Reconciled',
-                    ]),
             ])
             ->defaultSort('deposit_date')
             ->striped()
@@ -78,10 +72,7 @@ class UnreconciledDepositsWidget extends BaseWidget
     private function baseQuery(): Builder
     {
         return Deposit::query()
-            ->whereIn('status', [
-                DepositStatus::Unreconciled->value,
-                DepositStatus::PartiallyReconciled->value,
-            ])
-            ->with('customer', 'territory');
+            ->unreconciled()
+            ->with('customer', 'territory', 'bankAccount');
     }
 }

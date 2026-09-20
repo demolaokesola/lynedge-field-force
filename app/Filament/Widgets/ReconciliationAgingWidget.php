@@ -2,7 +2,6 @@
 
 namespace App\Filament\Widgets;
 
-use App\Enums\DepositStatus;
 use App\Models\Deposit;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -23,9 +22,7 @@ class ReconciliationAgingWidget extends BaseWidget
 
     protected function getStats(): array
     {
-        $statuses = [DepositStatus::Unreconciled->value, DepositStatus::PartiallyReconciled->value];
-
-        $base = Deposit::query()->whereIn('status', $statuses);
+        $base = Deposit::query()->unreconciled();
 
         $now = Carbon::now();
 

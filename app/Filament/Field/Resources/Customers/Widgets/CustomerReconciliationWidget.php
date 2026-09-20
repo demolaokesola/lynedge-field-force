@@ -40,7 +40,7 @@ class CustomerReconciliationWidget extends BaseWidget
         $depositTotal = (float) (clone $depositBase)->sum('amount');
         $reconciled = (float) (clone $depositBase)->where('status', DepositStatus::Reconciled->value)->sum('amount');
         $unreconciled = $depositTotal - $reconciled;
-        $outstanding = $distributionTotal - $depositTotal;
+        $outstanding = $distributionTotal - $reconciled;
 
         return [
             Stat::make('Distributed (₦)', number_format($distributionTotal, 2))

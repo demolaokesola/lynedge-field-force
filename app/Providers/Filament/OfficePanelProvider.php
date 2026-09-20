@@ -37,7 +37,7 @@ class OfficePanelProvider extends PanelProvider
             ->resources([
                 DepositResource::class,
             ])
-            ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
+            ->discoverPages(in: app_path('Filament/Office/Pages'), for: 'App\Filament\Office\Pages')
             ->pages([
                 Dashboard::class,
             ])

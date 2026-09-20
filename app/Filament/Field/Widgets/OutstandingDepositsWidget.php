@@ -24,11 +24,7 @@ class OutstandingDepositsWidget extends BaseWidget
     {
         $user = auth()->user();
 
-        $base = Deposit::visibleTo($user)
-            ->whereIn('status', [
-                DepositStatus::Unreconciled->value,
-                DepositStatus::PartiallyReconciled->value,
-            ]);
+        $base = Deposit::visibleTo($user)->unreconciled();
 
         $count = (clone $base)->count();
         $total = (clone $base)->sum('amount');

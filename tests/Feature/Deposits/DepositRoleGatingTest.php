@@ -1,13 +1,11 @@
 <?php
 
 use App\Models\Deposit;
-use App\Models\DepositAllocation;
 use App\Models\User;
-use App\Policies\DepositAllocationPolicy;
 use App\Policies\DepositPolicy;
 
 /**
- * Policy-level gating for deposits and allocations.
+ * Policy-level gating for deposits.
  * Superuser bypass is handled by Shield's Gate::before and is not repeated here.
  */
 test('sales_rep can create deposits', function (): void {
@@ -54,29 +52,3 @@ test('accountant can update and delete any deposit', function (): void {
     expect($policy->update($accountant, $deposit))->toBeTrue()
         ->and($policy->delete($accountant, $deposit))->toBeTrue();
 });
-
-test('only accountant and platform_admin can create allocations', function (string $role, bool $expected): void {
-    $user = User::factory()->withRole($role)->create();
-    $policy = new DepositAllocationPolicy;
-
-    expect($policy->create($user))->toBe($expected);
-})->with([
-    'accountant can' => ['accountant', true],
-    'platform_admin can' => ['platform_admin', true],
-    'sales_rep cannot' => ['sales_rep', false],
-    'hq_lead cannot' => ['hq_lead', false],
-    'regional_head cannot' => ['regional_head', false],
-]);
-
-test('only accountant and platform_admin can delete allocations', function (string $role, bool $expected): void {
-    $user = User::factory()->withRole($role)->create();
-    $allocation = DepositAllocation::factory()->create();
-    $policy = new DepositAllocationPolicy;
-
-    expect($policy->delete($user, $allocation))->toBe($expected);
-})->with([
-    'accountant can' => ['accountant', true],
-    'platform_admin can' => ['platform_admin', true],
-    'sales_rep cannot' => ['sales_rep', false],
-    'hq_lead cannot' => ['hq_lead', false],
-]);

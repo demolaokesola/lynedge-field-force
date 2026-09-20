@@ -22,7 +22,6 @@ class ReconciliationStatusWidget extends BaseWidget
         $base = Deposit::visibleTo($user);
 
         $unreconciled = (clone $base)->where('status', DepositStatus::Unreconciled->value)->count();
-        $partial = (clone $base)->where('status', DepositStatus::PartiallyReconciled->value)->count();
         $reconciled = (clone $base)->where('status', DepositStatus::Reconciled->value)->count();
         $disputed = (clone $base)->where('status', DepositStatus::Disputed->value)->count();
 
@@ -30,9 +29,6 @@ class ReconciliationStatusWidget extends BaseWidget
             Stat::make('Unreconciled', $unreconciled)
                 ->descriptionIcon('heroicon-m-clock')
                 ->color('warning'),
-            Stat::make('Partially Reconciled', $partial)
-                ->descriptionIcon('heroicon-m-arrow-path')
-                ->color('info'),
             Stat::make('Reconciled', $reconciled)
                 ->descriptionIcon('heroicon-m-check-circle')
                 ->color('success'),

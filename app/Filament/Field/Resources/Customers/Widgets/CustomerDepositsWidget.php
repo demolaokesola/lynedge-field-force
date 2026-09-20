@@ -40,9 +40,6 @@ class CustomerDepositsWidget extends BaseWidget
                 TextColumn::make('amount')
                     ->label('Amount (₦)')
                     ->sortable(),
-                TextColumn::make('remaining_balance')
-                    ->label('Balance (₦)')
-                    ->state(fn (Deposit $record): string => $record->remainingBalance()->format()),
                 TextColumn::make('status')
                     ->badge(),
             ])

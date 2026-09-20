@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Enums\DepositChannel;
 use App\Enums\DepositStatus;
+use App\Models\BankAccount;
 use App\Models\Customer;
 use App\Models\Deposit;
 use App\Models\User;
@@ -24,11 +25,11 @@ class DepositFactory extends Factory
     {
         return [
             'customer_id' => Customer::factory(),
+            'bank_account_id' => BankAccount::factory(),
             'user_id' => User::factory(),
             'amount' => fake()->randomFloat(2, 500, 100000),
             'deposit_date' => fake()->dateTimeBetween('-3 months', 'now')->format('Y-m-d'),
             'reference' => fake()->optional()->bothify('REF-########'),
-            'bank' => fake()->optional()->randomElement(['GTBank', 'Access Bank', 'First Bank', 'Zenith Bank']),
             'channel' => fake()->optional()->randomElement(DepositChannel::cases())?->value,
             'status' => DepositStatus::Unreconciled,
             'notes' => fake()->optional()->sentence(),
@@ -38,6 +39,11 @@ class DepositFactory extends Factory
     public function forCustomer(Customer $customer): static
     {
         return $this->state(['customer_id' => $customer->id]);
+    }
+
+    public function forBankAccount(BankAccount $bankAccount): static
+    {
+        return $this->state(['bank_account_id' => $bankAccount->id]);
     }
 
     public function by(User $rep): static
@@ -52,6 +58,9 @@ class DepositFactory extends Factory
 
     public function disputed(): static
     {
-        return $this->state(['status' => DepositStatus::Disputed]);
+        return $this->state([
+            'status' => DepositStatus::Disputed,
+            'dispute_reason' => fake()->sentence(),
+        ]);
     }
 }

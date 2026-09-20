@@ -5,26 +5,23 @@ namespace App\Filament\Shared\Resources\Deposits\Pages;
 use App\Filament\Shared\Resources\Deposits\Actions\DisputeActions;
 use App\Filament\Shared\Resources\Deposits\Actions\ReconciliationActions;
 use App\Filament\Shared\Resources\Deposits\DepositResource;
-use Filament\Actions\DeleteAction;
-use Filament\Resources\Pages\EditRecord;
+use Filament\Actions\EditAction;
+use Filament\Resources\Pages\ViewRecord;
 
-class EditDeposit extends EditRecord
+/**
+ * Read-only deposit details. Reps land here from the deposits list; every header
+ * action is gated by DepositPolicy::update, so they see none of them.
+ */
+class ViewDeposit extends ViewRecord
 {
     protected static string $resource = DepositResource::class;
 
     protected function getHeaderActions(): array
     {
         return [
-            // Reconciliation and dispute actions are gated by DepositPolicy::update (accountant | platform_admin).
+            EditAction::make(),
             ...ReconciliationActions::make(),
             ...DisputeActions::make(),
-            // Hidden automatically when DepositPolicy::delete() denies (field roles).
-            DeleteAction::make(),
         ];
-    }
-
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
     }
 }

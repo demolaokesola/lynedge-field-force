@@ -15,6 +15,10 @@ class DistributionTrendWidget extends ChartWidget
 
     protected ?string $pollingInterval = null;
 
+    protected int|string|array $columnSpan = 'full';
+
+    protected ?string $maxHeight = '300px';
+
     public static function canView(): bool
     {
         return auth()->user()?->hasAnyRole(['superuser', 'platform_admin']) ?? false;

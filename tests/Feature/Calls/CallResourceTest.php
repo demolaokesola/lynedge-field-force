@@ -2,6 +2,7 @@
 
 use App\Enums\CallType;
 use App\Filament\Shared\Resources\Calls\Pages\CreateCall;
+use App\Filament\Shared\Resources\Calls\Pages\EditCall;
 use App\Filament\Shared\Resources\Calls\Pages\ListCalls;
 use App\Filament\Shared\Resources\Calls\Schemas\CallForm;
 use App\Models\Call;
@@ -13,7 +14,9 @@ use App\Models\Region;
 use App\Models\Team;
 use App\Models\Territory;
 use App\Models\User;
+use Filament\Actions\Action;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\TextInput;
 
 use function Pest\Livewire\livewire;
 
@@ -119,4 +122,43 @@ test('a sales_rep may create calls but management roles may not', function (): v
         $user = User::factory()->withRole($role)->create();
         expect($user->can('create', Call::class))->toBeFalse();
     }
+});
+
+test('latitude and longitude are read-only device-captured fields with a capture action', function (): void {
+    $hasCaptureAction = fn (TextInput $field): bool => collect($field->getHintActions())
+        ->contains(fn (Action $action): bool => $action->getName() === 'captureLocation'
+            && str_contains((string) $action->getCustomAlpineClickHandler(), 'navigator.geolocation'));
+
+    livewire(CreateCall::class)
+        ->assertFormFieldExists('latitude', fn (TextInput $field): bool => $field->isReadOnly()
+            && $hasCaptureAction($field)
+            && str_contains((string) $field->getExtraAttributes()['x-init'], 'navigator.geolocation'))
+        ->assertFormFieldExists('longitude', fn (TextInput $field): bool => $field->isReadOnly());
+
+    $call = Call::factory()->by($this->rep)->forPosition($this->position)->create();
+
+    livewire(EditCall::class, ['record' => $call->id])
+        ->assertFormFieldExists('latitude', fn (TextInput $field): bool => $field->isReadOnly()
+            && $hasCaptureAction($field)
+            && ! array_key_exists('x-init', $field->getExtraAttributes()));
+});
+
+test('a captured location is stored with the call', function (): void {
+    livewire(CreateCall::class)
+        ->fillForm([
+            'position_id' => $this->position->id,
+            'called_at' => now(),
+            'call_type' => CallType::PhysicalVisit->value,
+            'demand_creator_id' => $this->demandCreator->id,
+            'products' => [$this->product->id],
+            'latitude' => '6.5244000',
+            'longitude' => '3.3792000',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $call = Call::sole();
+
+    expect((float) $call->latitude)->toBe(6.5244)
+        ->and((float) $call->longitude)->toBe(3.3792);
 });

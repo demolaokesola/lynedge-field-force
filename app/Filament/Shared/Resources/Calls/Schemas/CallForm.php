@@ -7,6 +7,7 @@ use App\Models\DemandCreator;
 use App\Models\Position;
 use App\Models\Product;
 use App\Services\RepScope;
+use Filament\Actions\Action;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
@@ -14,6 +15,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Builder;
 
 class CallForm
@@ -52,9 +54,21 @@ class CallForm
                     ->columns(2)
                     ->columnSpanFull(),
                 TextInput::make('latitude')
-                    ->numeric(),
+                    ->numeric()
+                    ->readOnly()
+                    ->hintAction(
+                        Action::make('captureLocation')
+                            ->label('Use my location')
+                            ->icon(Heroicon::MapPin)
+                            ->actionJs(static::captureLocationJs()),
+                    )
+                    // Auto-capture on create only; never overwrite a stored location on edit.
+                    ->extraAttributes(fn (string $operation): array => $operation === 'create'
+                        ? ['x-init' => static::captureLocationJs()]
+                        : []),
                 TextInput::make('longitude')
-                    ->numeric(),
+                    ->numeric()
+                    ->readOnly(),
                 Textarea::make('notes')
                     ->maxLength(1000)
                     ->columnSpanFull(),
@@ -110,6 +124,25 @@ class CallForm
             : Position::whereKey($positionId)->value('team_id');
 
         return $query->whereHas('teams', fn (Builder $teams): Builder => $teams->whereKey($teamId));
+    }
+
+    /**
+     * Fill latitude/longitude from the browser's Geolocation API. Runs in the
+     * field's Alpine scope, so $set targets sibling fields without a round trip.
+     * No-op when unsupported or denied — the fields simply stay empty.
+     */
+    protected static function captureLocationJs(): string
+    {
+        return <<<'JS'
+            navigator.geolocation?.getCurrentPosition(
+                (position) => {
+                    $set('latitude', position.coords.latitude.toFixed(7))
+                    $set('longitude', position.coords.longitude.toFixed(7))
+                },
+                () => {},
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+            )
+            JS;
     }
 
     protected static function territoryIdFor(int|string|null $positionId): ?int

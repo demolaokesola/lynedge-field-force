@@ -12,6 +12,7 @@ use App\Models\StockMovement;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\StockLedger;
+use Illuminate\Support\Carbon;
 
 /**
  * StockLedger is the single choke point for "stock actually changed" — it inserts an
@@ -37,6 +38,7 @@ test('recording a movement inserts an immutable ledger row denormalised from the
         StockMovementType::DispatchAcceptance,
         $line,
         $this->causer,
+        Carbon::parse('2026-03-14'),
     );
 
     expect($movement->position_id)->toBe($this->position->id)
@@ -45,6 +47,7 @@ test('recording a movement inserts an immutable ledger row denormalised from the
         ->and((float) $movement->quantity_delta)->toBe(25.0)
         ->and($movement->type)->toBe(StockMovementType::DispatchAcceptance)
         ->and($movement->caused_by_user_id)->toBe($this->causer->id)
+        ->and($movement->effective_date->toDateString())->toBe('2026-03-14')
         ->and($movement->source->is($line))->toBeTrue();
 });
 
@@ -52,7 +55,7 @@ test('recording a movement creates the balance row for a first-time (position, p
     $dispatch = StockDispatch::factory()->forPosition($this->position)->create();
     $line = StockDispatchLine::factory()->forDispatch($dispatch)->create(['product_id' => $this->product->id]);
 
-    app(StockLedger::class)->record($this->position, $this->product, '40.00', StockMovementType::DispatchAcceptance, $line, $this->causer);
+    app(StockLedger::class)->record($this->position, $this->product, '40.00', StockMovementType::DispatchAcceptance, $line, $this->causer, today());
 
     $balance = PositionProductStock::query()
         ->where('position_id', $this->position->id)
@@ -70,8 +73,8 @@ test('the balance is recomputed from the full movement history, and may go negat
     $adjustmentLine = StockAdjustmentLine::factory()->forAdjustment($adjustment)->create(['product_id' => $this->product->id]);
 
     $ledger = app(StockLedger::class);
-    $ledger->record($this->position, $this->product, '10.00', StockMovementType::DispatchAcceptance, $dispatchLine, $this->causer);
-    $ledger->record($this->position, $this->product, '-30.00', StockMovementType::Adjustment, $adjustmentLine, $this->causer);
+    $ledger->record($this->position, $this->product, '10.00', StockMovementType::DispatchAcceptance, $dispatchLine, $this->causer, today());
+    $ledger->record($this->position, $this->product, '-30.00', StockMovementType::Adjustment, $adjustmentLine, $this->causer, today());
 
     expect(StockMovement::count())->toBe(2);
 

@@ -2,19 +2,16 @@
 
 namespace App\Filament\Office\Resources\StockAdjustments\Pages;
 
-use App\Enums\StockAdjustmentStatus;
-use App\Enums\StockMovementType;
 use App\Filament\Office\Resources\StockAdjustments\StockAdjustmentResource;
 use App\Models\Position;
 use App\Models\StockAdjustment;
 use App\Services\RepScope;
-use App\Services\StockLedger;
+use App\Services\StockAdjustmentService;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Support\Icons\Heroicon;
-use Illuminate\Support\Facades\DB;
 
 class EditStockAdjustment extends EditRecord
 {
@@ -24,7 +21,7 @@ class EditStockAdjustment extends EditRecord
     {
         return [
             // The submit stage: posting freezes the record and moves stock via
-            // StockLedger. Redirects away since the edit page would otherwise 403 on
+            // StockAdjustmentService. Redirects away since the edit page would otherwise 403 on
             // the next request.
             Action::make('post')
                 ->label('Post')
@@ -33,23 +30,7 @@ class EditStockAdjustment extends EditRecord
                 ->requiresConfirmation()
                 ->authorize('post')
                 ->action(function (StockAdjustment $record): void {
-                    DB::transaction(function () use ($record): void {
-                        $record->load('lines.product', 'position');
-
-                        foreach ($record->lines as $line) {
-                            app(StockLedger::class)->record(
-                                $record->position,
-                                $line->product,
-                                (string) $line->quantity_delta,
-                                StockMovementType::Adjustment,
-                                $line,
-                                auth()->user(),
-                            );
-                        }
-
-                        $record->status = StockAdjustmentStatus::Posted;
-                        $record->save();
-                    });
+                    app(StockAdjustmentService::class)->post($record, auth()->user());
 
                     Notification::make()->success()->title('Adjustment posted')->send();
                 })

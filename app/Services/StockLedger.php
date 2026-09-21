@@ -8,6 +8,7 @@ use App\Models\PositionProductStock;
 use App\Models\Product;
 use App\Models\StockMovement;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -21,6 +22,8 @@ class StockLedger
 {
     /**
      * Record a stock movement and refresh the position's balance for that product.
+     * effective_date is the business date of the change (acceptance day, adjustment
+     * date, invoice date), which may differ from when the row is written.
      */
     public function record(
         Position $position,
@@ -29,6 +32,7 @@ class StockLedger
         StockMovementType $type,
         Model $source,
         User $causer,
+        CarbonInterface $effectiveDate,
     ): StockMovement {
         $movement = new StockMovement([
             'position_id' => $position->id,
@@ -37,6 +41,7 @@ class StockLedger
             'product_id' => $product->id,
             'quantity_delta' => $quantityDelta,
             'type' => $type,
+            'effective_date' => $effectiveDate->toDateString(),
             'caused_by_user_id' => $causer->id,
         ]);
         $movement->source()->associate($source);

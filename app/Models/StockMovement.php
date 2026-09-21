@@ -18,9 +18,10 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  * deleted. team_id and territory_id are denormalised from the position at write time,
  * same as {@see Distribution}.
  *
- * source is the StockDispatchLine or StockAdjustmentLine that caused this movement.
+ * source is the StockDispatchLine, StockAdjustmentLine or DistributionLine that caused
+ * this movement.
  */
-#[Fillable(['position_id', 'territory_id', 'team_id', 'product_id', 'quantity_delta', 'type', 'caused_by_user_id'])]
+#[Fillable(['position_id', 'territory_id', 'team_id', 'product_id', 'quantity_delta', 'type', 'effective_date', 'caused_by_user_id'])]
 class StockMovement extends Model
 {
     /** @use HasFactory<StockMovementFactory> */
@@ -82,6 +83,7 @@ class StockMovement extends Model
         return [
             'quantity_delta' => 'decimal:2',
             'type' => StockMovementType::class,
+            'effective_date' => 'date',
         ];
     }
 }

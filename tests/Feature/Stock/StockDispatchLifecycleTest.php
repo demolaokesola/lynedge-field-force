@@ -2,6 +2,7 @@
 
 use App\Enums\StockDispatchStatus;
 use App\Enums\StockMovementType;
+use App\Exceptions\InvalidStockTransition;
 use App\Filament\Field\Resources\StockDispatches\Pages\ListStockDispatches as FieldListStockDispatches;
 use App\Filament\Office\Resources\StockDispatches\Pages\CreateStockDispatch;
 use App\Filament\Office\Resources\StockDispatches\Pages\ListStockDispatches as OfficeListStockDispatches;
@@ -15,6 +16,7 @@ use App\Models\StockMovement;
 use App\Models\Team;
 use App\Models\Territory;
 use App\Models\User;
+use App\Services\StockDispatchService;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 
@@ -152,4 +154,26 @@ test('a sales_rep cannot create, send, or void a stock dispatch', function (): v
     expect($this->rep->can('create', StockDispatch::class))->toBeFalse()
         ->and($this->rep->can('send', $dispatch))->toBeFalse()
         ->and($this->rep->can('void', $dispatch))->toBeFalse();
+});
+
+test('accepting the same dispatch twice is rejected on the second attempt and moves stock only once', function (): void {
+    $dispatch = StockDispatch::factory()->by($this->ops)->forPosition($this->position)->dispatched()->create();
+    StockDispatchLine::factory()->forDispatch($dispatch)->create(['product_id' => $this->product->id, 'quantity' => 10]);
+
+    $service = app(StockDispatchService::class);
+    $service->accept($dispatch, $this->rep);
+
+    expect(fn () => $service->accept($dispatch, $this->rep))->toThrow(InvalidStockTransition::class);
+
+    expect(StockMovement::count())->toBe(1)
+        ->and((float) PositionProductStock::query()->where('position_id', $this->position->id)->value('quantity'))->toBe(10.0);
+});
+
+test('an accepted movement carries the acceptance day as its effective date', function (): void {
+    $dispatch = StockDispatch::factory()->by($this->ops)->forPosition($this->position)->dispatched()->create(['dispatch_date' => '2026-01-05']);
+    StockDispatchLine::factory()->forDispatch($dispatch)->create(['product_id' => $this->product->id, 'quantity' => 10]);
+
+    app(StockDispatchService::class)->accept($dispatch, $this->rep);
+
+    expect(StockMovement::sole()->effective_date->toDateString())->toBe(today()->toDateString());
 });

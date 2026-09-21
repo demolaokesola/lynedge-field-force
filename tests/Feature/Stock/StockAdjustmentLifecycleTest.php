@@ -3,6 +3,7 @@
 use App\Enums\StockAdjustmentReason;
 use App\Enums\StockAdjustmentStatus;
 use App\Enums\StockMovementType;
+use App\Exceptions\InvalidStockTransition;
 use App\Filament\Office\Resources\StockAdjustments\Pages\CreateStockAdjustment;
 use App\Filament\Office\Resources\StockAdjustments\Pages\ListStockAdjustments;
 use App\Models\Position;
@@ -14,6 +15,7 @@ use App\Models\StockMovement;
 use App\Models\Team;
 use App\Models\Territory;
 use App\Models\User;
+use App\Services\StockAdjustmentService;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 
@@ -116,4 +118,24 @@ test('a sales_rep cannot create, edit, post, or void a stock adjustment', functi
         ->and($this->rep->can('update', $adjustment))->toBeFalse()
         ->and($this->rep->can('post', $adjustment))->toBeFalse()
         ->and($this->rep->can('void', $adjustment))->toBeFalse();
+});
+
+test('posting the same adjustment twice is rejected on the second attempt and moves stock only once', function (): void {
+    $adjustment = StockAdjustment::factory()->by($this->ops)->forPosition($this->position)->create(['adjustment_date' => '2026-02-20']);
+    StockAdjustmentLine::factory()->forAdjustment($adjustment)->create([
+        'product_id' => $this->product->id,
+        'quantity_delta' => 7,
+        'reason' => StockAdjustmentReason::Correction,
+    ]);
+
+    $service = app(StockAdjustmentService::class);
+    $service->post($adjustment, $this->ops);
+
+    expect(fn () => $service->post($adjustment, $this->ops))->toThrow(InvalidStockTransition::class);
+
+    $movement = StockMovement::sole();
+
+    expect((float) $movement->quantity_delta)->toBe(7.0)
+        ->and($movement->effective_date->toDateString())->toBe('2026-02-20')
+        ->and((float) PositionProductStock::query()->where('position_id', $this->position->id)->value('quantity'))->toBe(7.0);
 });

@@ -34,6 +34,7 @@ class StockMovementFactory extends Factory
             'product_id' => $product->id,
             'quantity_delta' => fake()->randomFloat(2, -20, 20),
             'type' => fake()->randomElement(StockMovementType::cases()),
+            'effective_date' => fake()->dateTimeBetween('-60 days', 'now')->format('Y-m-d'),
             'caused_by_user_id' => User::factory(),
         ];
     }

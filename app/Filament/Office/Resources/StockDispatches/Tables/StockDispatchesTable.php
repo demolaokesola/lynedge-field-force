@@ -4,6 +4,7 @@ namespace App\Filament\Office\Resources\StockDispatches\Tables;
 
 use App\Enums\StockDispatchStatus;
 use App\Models\StockDispatch;
+use App\Services\StockDispatchService;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -55,8 +56,7 @@ class StockDispatchesTable
                     ->requiresConfirmation()
                     ->authorize('send')
                     ->action(function (StockDispatch $record): void {
-                        $record->status = StockDispatchStatus::Dispatched;
-                        $record->save();
+                        app(StockDispatchService::class)->send($record);
 
                         Notification::make()->success()->title('Dispatch sent')->send();
                     }),

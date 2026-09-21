@@ -31,6 +31,7 @@ class FieldPanelProvider extends PanelProvider
             ->path('field')
             ->login()
             ->profile(ChangePassword::class)
+            ->databaseNotifications()
             ->colors([
                 'primary' => Color::Emerald,
             ])

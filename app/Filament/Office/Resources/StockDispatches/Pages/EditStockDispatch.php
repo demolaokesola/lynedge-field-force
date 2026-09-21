@@ -2,11 +2,11 @@
 
 namespace App\Filament\Office\Resources\StockDispatches\Pages;
 
-use App\Enums\StockDispatchStatus;
 use App\Filament\Office\Resources\StockDispatches\StockDispatchResource;
 use App\Models\Position;
 use App\Models\StockDispatch;
 use App\Services\RepScope;
+use App\Services\StockDispatchService;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Notifications\Notification;
@@ -30,8 +30,7 @@ class EditStockDispatch extends EditRecord
                 ->requiresConfirmation()
                 ->authorize('send')
                 ->action(function (StockDispatch $record): void {
-                    $record->status = StockDispatchStatus::Dispatched;
-                    $record->save();
+                    app(StockDispatchService::class)->send($record);
 
                     Notification::make()->success()->title('Dispatch sent')->send();
                 })

@@ -32,6 +32,7 @@ class OfficePanelProvider extends PanelProvider
             ->path('office')
             ->login()
             ->profile(ChangePassword::class)
+            ->databaseNotifications()
             ->colors([
                 'primary' => Color::Amber,
             ])

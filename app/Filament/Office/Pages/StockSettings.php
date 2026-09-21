@@ -5,6 +5,7 @@ namespace App\Filament\Office\Pages;
 use App\Services\StockSettings as StockSettingsService;
 use BackedEnum;
 use Filament\Actions\Action;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -16,9 +17,10 @@ use Filament\Support\Icons\Heroicon;
 use UnitEnum;
 
 /**
- * Operations' two stock switches, backed by {@see StockSettingsService}: the go-live
- * switch that makes posted distributions draw down stock, and whether a distribution
- * that would take a balance below zero is refused or merely warned about.
+ * Operations' stock settings, backed by {@see StockSettingsService}: the go-live
+ * switch that makes posted distributions draw down stock, whether a distribution that
+ * would take a balance below zero is refused or merely warned about, and the balance
+ * at which reps are alerted to low stock.
  *
  * @property-read Schema $form
  */
@@ -51,6 +53,7 @@ class StockSettings extends Page
         $this->form->fill([
             'consumption_enabled' => $settings->consumptionEnabled(),
             'block_negative_stock' => $settings->blockNegativeStock(),
+            'low_stock_threshold' => $settings->lowStockThreshold(),
         ]);
     }
 
@@ -68,6 +71,16 @@ class StockSettings extends Page
                             Toggle::make('block_negative_stock')
                                 ->label('Refuse distributions that exceed stock on hand')
                                 ->helperText('When off, the rep is warned and the balance is allowed to go negative. When on, the distribution stays in draft.'),
+                        ]),
+                    Section::make('Low stock alerts')
+                        ->schema([
+                            TextInput::make('low_stock_threshold')
+                                ->label('Low stock threshold')
+                                ->helperText('Reps see any product at or below this quantity on their dashboard. Set to 0 to switch the alert off.')
+                                ->numeric()
+                                ->integer()
+                                ->minValue(0)
+                                ->required(),
                         ]),
                 ])
                     ->livewireSubmitHandler('save')
@@ -90,6 +103,7 @@ class StockSettings extends Page
         $settings = app(StockSettingsService::class);
         $settings->setConsumptionEnabled((bool) ($data['consumption_enabled'] ?? false));
         $settings->setBlockNegativeStock((bool) ($data['block_negative_stock'] ?? false));
+        $settings->setLowStockThreshold((int) ($data['low_stock_threshold'] ?? StockSettingsService::DEFAULT_LOW_STOCK_THRESHOLD));
 
         Notification::make()
             ->success()

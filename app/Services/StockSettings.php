@@ -13,12 +13,18 @@ use Illuminate\Support\Facades\Cache;
  *    does not touch the ledger, so Operations can enter opening balances first.
  *  - block_negative_stock: when on, a distribution whose lines would take any balance
  *    below zero is refused instead of posted with a warning.
+ *  - low_stock_threshold: balances at or below this are flagged to reps on their
+ *    dashboard. Zero disables the flag.
  */
 class StockSettings
 {
     public const string CONSUMPTION_ENABLED = 'stock.consumption_enabled';
 
     public const string BLOCK_NEGATIVE_STOCK = 'stock.block_negative_stock';
+
+    public const string LOW_STOCK_THRESHOLD = 'stock.low_stock_threshold';
+
+    public const int DEFAULT_LOW_STOCK_THRESHOLD = 10;
 
     public function consumptionEnabled(): bool
     {
@@ -28,6 +34,21 @@ class StockSettings
     public function blockNegativeStock(): bool
     {
         return $this->bool(self::BLOCK_NEGATIVE_STOCK, default: false);
+    }
+
+    public function lowStockThreshold(): int
+    {
+        $value = Cache::rememberForever(
+            $this->cacheKey(self::LOW_STOCK_THRESHOLD),
+            fn (): ?int => Setting::query()->where('key', self::LOW_STOCK_THRESHOLD)->value('value'),
+        );
+
+        return $value ?? self::DEFAULT_LOW_STOCK_THRESHOLD;
+    }
+
+    public function setLowStockThreshold(int $threshold): void
+    {
+        $this->put(self::LOW_STOCK_THRESHOLD, max(0, $threshold));
     }
 
     public function setConsumptionEnabled(bool $enabled): void
@@ -50,7 +71,7 @@ class StockSettings
         return $value ?? $default;
     }
 
-    private function put(string $key, bool $value): void
+    private function put(string $key, bool|int $value): void
     {
         Setting::query()->updateOrCreate(['key' => $key], ['value' => $value]);
 

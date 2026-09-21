@@ -93,7 +93,7 @@ class StockCountForm
     }
 
     /**
-     * Products in the chosen position's team catalogue.
+     * Active products in the chosen position's team catalogue.
      *
      * @return array<int, string>
      */
@@ -110,6 +110,7 @@ class StockCountForm
         }
 
         return Product::query()
+            ->where('active', true)
             ->whereHas('teams', fn (Builder $q): Builder => $q->whereKey($teamId))
             ->orderBy('name')
             ->pluck('name', 'id')

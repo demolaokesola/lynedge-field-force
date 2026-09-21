@@ -19,7 +19,10 @@ use Illuminate\Support\Facades\DB;
  */
 class StockCountService
 {
-    public function __construct(private readonly StockLedger $ledger) {}
+    public function __construct(
+        private readonly StockLedger $ledger,
+        private readonly StockNotifier $notifier,
+    ) {}
 
     /**
      * Hand a draft count to Operations for review.
@@ -41,6 +44,8 @@ class StockCountService
 
             $count->setRawAttributes($locked->getAttributes(), sync: true);
         });
+
+        $this->notifier->countSubmitted($count);
     }
 
     /**

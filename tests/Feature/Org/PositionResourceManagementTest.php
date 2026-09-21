@@ -136,3 +136,19 @@ describe('PositionCalls tab', function (): void {
             ->assertCanNotSeeTableRecords([$foreign]);
     });
 });
+
+describe('read access by role', function (): void {
+    it('grants position read to admin and management roles but not to finance or field roles', function (string $role, bool $allowed): void {
+        $user = User::factory()->withRole($role)->create();
+        $position = Position::factory()->create();
+
+        expect($user->can('viewAny', Position::class))->toBe($allowed)
+            ->and($user->can('view', $position))->toBe($allowed);
+    })->with([
+        'platform_admin' => ['platform_admin', true],
+        'hq_lead' => ['hq_lead', true],
+        'regional_head' => ['regional_head', true],
+        'accountant' => ['accountant', false],
+        'sales_rep' => ['sales_rep', false],
+    ]);
+});

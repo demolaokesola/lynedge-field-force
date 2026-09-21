@@ -12,11 +12,21 @@ class NoActivePositionNoticeWidget extends BaseWidget
 
     protected ?string $pollingInterval = null;
 
+    protected int|string|array $columnSpan = 'full';
+
     public static function canView(): bool
     {
         $user = auth()->user();
 
         return $user !== null && app(RepScope::class)->activePositions($user)->isEmpty();
+    }
+
+    /**
+     * A single notice card should fill the row, not sit in one third of the stats grid.
+     */
+    protected function getColumns(): int
+    {
+        return 1;
     }
 
     protected function getStats(): array

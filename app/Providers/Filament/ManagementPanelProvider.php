@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\Auth\ChangePassword;
 use App\Filament\Shared\Resources\Calls\CallResource;
 use App\Filament\Shared\Resources\Distributions\DistributionResource;
 use App\Http\Middleware\RedirectUnauthenticatedToLogin;
@@ -29,6 +30,7 @@ class ManagementPanelProvider extends PanelProvider
             ->id('management')
             ->path('management')
             ->login()
+            ->profile(ChangePassword::class)
             ->colors([
                 'primary' => Color::Indigo,
             ])

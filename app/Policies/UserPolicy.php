@@ -39,4 +39,12 @@ class UserPolicy
     {
         return $user->hasRole('platform_admin');
     }
+
+    /**
+     * Send or resend an onboarding invitation.
+     */
+    public function invite(User $user, User $model): bool
+    {
+        return $user->hasRole('platform_admin');
+    }
 }

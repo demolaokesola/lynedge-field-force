@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Field\Pages\Dashboard;
+use App\Filament\Pages\Auth\ChangePassword;
 use App\Filament\Shared\Resources\Calls\CallResource;
 use App\Filament\Shared\Resources\Deposits\DepositResource;
 use App\Filament\Shared\Resources\Distributions\DistributionResource;
@@ -29,12 +30,12 @@ class FieldPanelProvider extends PanelProvider
             ->id('field')
             ->path('field')
             ->login()
+            ->profile(ChangePassword::class)
             ->colors([
                 'primary' => Color::Emerald,
             ])
-            // Mobile-first: top navigation collapses cleanly on small screens and the
+            // Mobile-first: the sidebar becomes a drawer on small screens and the
             // content spans the full width for reps working on phones in the field.
-            ->topNavigation()
             ->maxContentWidth(Width::Full)
             ->sidebarCollapsibleOnDesktop()
             ->discoverClusters(in: app_path('Filament/Field/Clusters'), for: 'App\Filament\Field\Clusters')

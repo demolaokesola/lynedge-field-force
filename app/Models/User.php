@@ -4,7 +4,9 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\PositionStatus;
+use App\Notifications\UserInvitation;
 use Database\Factories\UserFactory;
+use Filament\Facades\Filament;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -15,9 +17,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Password;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'region_id', 'is_active'])]
+#[Fillable(['name', 'email', 'password', 'region_id', 'is_active', 'invited_at'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser
 {
@@ -64,6 +67,43 @@ class User extends Authenticatable implements FilamentUser
         }
 
         return null;
+    }
+
+    /**
+     * Absolute URL of the panel this user lands in after signing in, or null when
+     * no role maps to a panel.
+     */
+    public function defaultPanelUrl(): ?string
+    {
+        $panelId = $this->defaultPanelId();
+
+        if ($panelId === null) {
+            return null;
+        }
+
+        return Filament::getPanel($panelId)->getUrl();
+    }
+
+    /**
+     * An invited user has no password until they accept their invitation; a NULL hash
+     * can never authenticate, so this doubles as "onboarding complete".
+     */
+    public function hasSetPassword(): bool
+    {
+        return $this->password !== null;
+    }
+
+    /**
+     * Issue a fresh 24-hour invitation link and email it. The broker keeps one token per
+     * email, so resending invalidates any earlier link.
+     */
+    public function sendInvitation(): void
+    {
+        $token = Password::broker('invitations')->createToken($this);
+
+        $this->forceFill(['invited_at' => now()])->save();
+
+        $this->notify(new UserInvitation($token));
     }
 
     /**
@@ -127,6 +167,7 @@ class User extends Authenticatable implements FilamentUser
     {
         return [
             'email_verified_at' => 'datetime',
+            'invited_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
         ];

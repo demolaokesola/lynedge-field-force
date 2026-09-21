@@ -3,8 +3,6 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
-use Filament\Facades\Filament;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -16,7 +14,7 @@ class LoginController extends Controller
     public function show(): View|RedirectResponse
     {
         if (Auth::check()) {
-            return redirect()->to($this->panelUrlFor(Auth::user()) ?? '/');
+            return redirect()->to(Auth::user()->defaultPanelUrl() ?? '/');
         }
 
         return view('auth.login');
@@ -37,7 +35,7 @@ class LoginController extends Controller
 
         $request->session()->regenerate();
 
-        $panelUrl = $this->panelUrlFor(Auth::user());
+        $panelUrl = Auth::user()->defaultPanelUrl();
 
         if ($panelUrl === null) {
             Auth::logout();
@@ -50,16 +48,5 @@ class LoginController extends Controller
         }
 
         return redirect()->intended($panelUrl);
-    }
-
-    private function panelUrlFor(User $user): ?string
-    {
-        $panelId = $user->defaultPanelId();
-
-        if ($panelId === null) {
-            return null;
-        }
-
-        return Filament::getPanel($panelId)->getUrl();
     }
 }

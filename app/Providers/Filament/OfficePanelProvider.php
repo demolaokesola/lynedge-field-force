@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\Auth\ChangePassword;
 use App\Filament\Shared\Resources\Deposits\DepositResource;
 use App\Http\Middleware\RedirectUnauthenticatedToLogin;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
@@ -30,6 +31,7 @@ class OfficePanelProvider extends PanelProvider
             ->id('office')
             ->path('office')
             ->login()
+            ->profile(ChangePassword::class)
             ->colors([
                 'primary' => Color::Amber,
             ])

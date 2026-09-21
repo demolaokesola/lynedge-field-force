@@ -2,6 +2,7 @@
 
 namespace App\Filament\Office\Resources\Users\Tables;
 
+use App\Filament\Office\Resources\Users\UserResource;
 use App\Models\User;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -43,6 +44,13 @@ class UsersTable
                 IconColumn::make('is_active')
                     ->boolean()
                     ->sortable(),
+                TextColumn::make('onboarding')
+                    ->state(fn (User $record): string => $record->hasSetPassword() ? 'Active' : 'Invite pending')
+                    ->badge()
+                    ->color(fn (string $state): string => $state === 'Active' ? 'success' : 'warning')
+                    ->tooltip(fn (User $record): ?string => $record->hasSetPassword() || $record->invited_at === null
+                        ? null
+                        : 'Invited '.$record->invited_at->diffForHumans()),
             ])
             ->filters([
                 SelectFilter::make('roles')
@@ -52,6 +60,7 @@ class UsersTable
                 TernaryFilter::make('is_active'),
             ])
             ->recordActions([
+                UserResource::resendInvitationAction(),
                 EditAction::make(),
             ])
             ->toolbarActions([

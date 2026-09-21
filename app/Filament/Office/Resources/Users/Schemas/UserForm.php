@@ -23,14 +23,10 @@ class UserForm
                     ->email()
                     ->required()
                     ->maxLength(255)
-                    ->unique(ignoreRecord: true),
-                TextInput::make('password')
-                    ->password()
-                    ->revealable()
-                    ->required(fn (string $operation): bool => $operation === 'create')
-                    ->dehydrated(fn (?string $state): bool => filled($state))
-                    ->helperText('Leave blank to keep the current password.')
-                    ->maxLength(255),
+                    ->unique(ignoreRecord: true)
+                    ->helperText(fn (string $operation): ?string => $operation === 'create'
+                        ? 'An invitation link to set a password will be emailed to this address.'
+                        : null),
                 Toggle::make('is_active')
                     ->default(true),
                 Select::make('roles')

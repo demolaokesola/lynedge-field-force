@@ -12,9 +12,16 @@ class NoCurrentCycleNoticeWidget extends BaseWidget
 
     protected ?string $pollingInterval = null;
 
+    protected int|string|array $columnSpan = 'full';
+
     public static function canView(): bool
     {
         return Cycle::where('is_current', true)->doesntExist();
+    }
+
+    protected function getColumns(): int
+    {
+        return 1;
     }
 
     protected function getStats(): array

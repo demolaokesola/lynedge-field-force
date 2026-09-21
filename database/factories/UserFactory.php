@@ -37,6 +37,18 @@ class UserFactory extends Factory
     }
 
     /**
+     * A user who has been invited but has not yet set a password.
+     */
+    public function invited(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'password' => null,
+            'invited_at' => now(),
+            'email_verified_at' => null,
+        ]);
+    }
+
+    /**
      * Indicate that the model's email address should be unverified.
      */
     public function unverified(): static

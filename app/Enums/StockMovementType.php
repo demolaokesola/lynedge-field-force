@@ -13,6 +13,7 @@ enum StockMovementType: string implements HasColor, HasLabel
     case DispatchAcceptance = 'dispatch_acceptance';
     case Adjustment = 'adjustment';
     case Distribution = 'distribution';
+    case StockCount = 'stock_count';
 
     public function getColor(): string|array|null
     {
@@ -20,6 +21,7 @@ enum StockMovementType: string implements HasColor, HasLabel
             self::DispatchAcceptance => 'success',
             self::Adjustment => 'info',
             self::Distribution => 'warning',
+            self::StockCount => 'primary',
         };
     }
 }

@@ -1,9 +1,8 @@
 <?php
 
-namespace App\Filament\Field\Resources\StockLevels;
+namespace App\Filament\Management\Resources\StockLevels;
 
-use App\Filament\Field\Clusters\MyStockCluster;
-use App\Filament\Field\Resources\StockLevels\Pages\ListStockLevels;
+use App\Filament\Management\Resources\StockLevels\Pages\ListStockLevels;
 use App\Filament\Shared\Resources\StockLevels\Tables\StockLevelsTable;
 use App\Models\PositionProductStock;
 use App\Services\StockLedger;
@@ -12,24 +11,25 @@ use Filament\Resources\Resource;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use UnitEnum;
 
 /**
- * Field-facing: the current balance for each (position, product) the viewer holds or
- * supervises. Read-only; balances only ever change via {@see StockLedger}.
+ * Management-facing: the current on-hand balance for every (position, product) the viewer
+ * may see. Read-only; balances only ever change via {@see StockLedger}.
  */
 class StockLevelResource extends Resource
 {
     protected static ?string $model = PositionProductStock::class;
 
-    protected static ?string $cluster = MyStockCluster::class;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedArchiveBox;
+
+    protected static string|UnitEnum|null $navigationGroup = 'Stock';
 
     protected static ?string $navigationLabel = 'Stock Levels';
 
-    protected static ?string $breadcrumb = 'Stock Levels';
+    protected static ?string $modelLabel = 'stock level';
 
     protected static ?int $navigationSort = 1;
-
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedArchiveBox;
 
     public static function table(Table $table): Table
     {
